@@ -1,219 +1,202 @@
-/* module_99999.c
- *
- * Модуль Ethereum brainwallet (m99999) — исправленная версия
- *
- * Комментарии и сообщения — на русском языке.
- *
- * Изменения:
- * - KERN_FILE_A0/A3 по умолчанию указывают на m99999_a0-pure.cl / m99999_a3-pure.cl
- * - Безопасный вызов hex_to_bytes: копируем 40 символов в локальный буфер и завершаем NUL
- * - cmp_hash использует DGST_SIZE * 4 вместо "магического" 20
- * - binary_to_hex корректно ставит '\0' даже при длине 0
+/**
+ * Author......: Custom Ethereum brainwallet module
+ * License.....: MIT
  */
 
 #include "common.h"
 #include "types.h"
 #include "modules.h"
-#include "logging.h"
-#include "memory.h"
-#include "event.h"
-#include "thread.h"
-#include "backend.h"
+#include "convert.h"
+#include "shared.h"
 
-#include <string.h>
-#include <ctype.h>
-#include <stdint.h>
+static const u32   ATTACK_EXEC   = ATTACK_EXEC_INSIDE_KERNEL;
+static const u32   DGST_POS0     = 0;
+static const u32   DGST_POS1     = 1;
+static const u32   DGST_POS2     = 2;
+static const u32   DGST_POS3     = 3;
+static const u32   DGST_SIZE     = DGST_SIZE_4_5;
+static const u32   HASH_CATEGORY = HASH_CATEGORY_RAW_HASH;
+static const char *HASH_NAME     = "Ethereum Brainwallet (SHA256 -> secp256k1 -> Keccak)";
+static const u64   KERN_TYPE     = 99999;
+static const u32   OPTI_TYPE     = OPTI_TYPE_ZERO_BYTE;
+static const u64   OPTS_TYPE     = OPTS_TYPE_STOCK_MODULE
+                                  | OPTS_TYPE_PT_GENERATE_LE;
+static const u32   SALT_TYPE     = SALT_TYPE_NONE;
 
-#ifndef KERN_FILE_A0
-#define KERN_FILE_A0 "m99999_a0-pure.cl"
-#endif
+u32         module_attack_exec   (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return ATTACK_EXEC;   }
+u32         module_dgst_pos0     (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return DGST_POS0;     }
+u32         module_dgst_pos1     (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return DGST_POS1;     }
+u32         module_dgst_pos2     (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return DGST_POS2;     }
+u32         module_dgst_pos3     (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return DGST_POS3;     }
+u32         module_dgst_size     (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return DGST_SIZE;     }
+u32         module_hash_category (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return HASH_CATEGORY; }
+const char *module_hash_name     (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return HASH_NAME;     }
+u64         module_kern_type     (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return KERN_TYPE;     }
+u32         module_opti_type     (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return OPTI_TYPE;     }
+u64         module_opts_type     (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return OPTS_TYPE;     }
+u32         module_salt_type     (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return SALT_TYPE;     }
 
-#ifndef KERN_FILE_A3
-#define KERN_FILE_A3 "m99999_a3-pure.cl"
-#endif
-
-#ifndef DGST_SIZE
-#define DGST_SIZE 5
-#endif
-
-static void addr_u8_to_u32_LE (const u8 *in, u32 *out)
+static void addr_u8_to_u32_le (const u8 *in, u32 *out)
 {
-  for (int i = 0; i < 5; i++)
+  for (u32 i = 0; i < 5; i++)
   {
-    const int off = i * 4;
-    out[i] = (u32) in[off + 0]
-           | ((u32) in[off + 1] << 8)
+    const u32 off = i * 4;
+
+    out[i] = ((u32) in[off + 0])
+           | ((u32) in[off + 1] <<  8)
            | ((u32) in[off + 2] << 16)
            | ((u32) in[off + 3] << 24);
   }
 }
 
-static void addr_u32_to_u8_LE (const u32 *in, u8 *out)
+static void addr_u32_to_u8_le (const u32 *in, u8 *out)
 {
-  for (int i = 0; i < 5; i++)
+  for (u32 i = 0; i < 5; i++)
   {
     const u32 v = in[i];
-    const int off = i * 4;
-    out[off + 0] = (u8) (v & 0xff);
-    out[off + 1] = (u8) ((v >> 8) & 0xff);
-    out[off + 2] = (u8) ((v >> 16) & 0xff);
-    out[off + 3] = (u8) ((v >> 24) & 0xff);
+    const u32 off = i * 4;
+
+    out[off + 0] = (u8) (v >>  0);
+    out[off + 1] = (u8) (v >>  8);
+    out[off + 2] = (u8) (v >> 16);
+    out[off + 3] = (u8) (v >> 24);
   }
 }
 
-static int bytes_to_hex_lower (const u8 *bytes, int len, char *hex_output, int out_size)
+int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED void *digest_buf, MAYBE_UNUSED salt_t *salt, MAYBE_UNUSED void *esalt_buf, MAYBE_UNUSED void *hook_salt_buf, MAYBE_UNUSED hashinfo_t *hash_info, const char *line_buf, const int line_len)
 {
-  static const char hexmap[] = "0123456789abcdef";
+  u32 *digest = (u32 *) digest_buf;
 
-  if (out_size < (len * 2)) return -1;
+  const u8 *ptr = (const u8 *) line_buf;
+  int length = line_len;
 
-  for (int i = 0; i < len; i++)
+  while (length && (ptr[length - 1] == '\n' || ptr[length - 1] == '\r')) length--;
+
+  if (length >= 2 && ptr[0] == '0' && (ptr[1] == 'x' || ptr[1] == 'X'))
   {
-    const u8 b = bytes[i];
-    hex_output[i * 2 + 0] = hexmap[(b >> 4) & 0xF];
-    hex_output[i * 2 + 1] = hexmap[b & 0xF];
+    ptr    += 2;
+    length -= 2;
   }
 
-  return len * 2;
-}
+  hc_token_t token;
+  memset (&token, 0, sizeof (token));
 
-static int parse_hash (hashcat_ctx_t *hashcat_ctx, void *digest_buf, const char *line_buf, const int line_len)
-{
-  (void) hashcat_ctx;
+  token.token_cnt  = 1;
+  token.len[0]     = 40;
+  token.attr[0]    = TOKEN_ATTR_FIXED_LENGTH
+                   | TOKEN_ATTR_VERIFY_HEX;
 
-  u32 *digests_buf = ((u32 *) digest_buf) + DIGEST_M0;
+  const int rc_tokenizer = input_tokenizer (ptr, length, &token);
 
-  if (line_buf == NULL)
-  {
-    log_error ("Ошибка: NULL указатель line_buf");
-    return PARSER_HASH_LENGTH;
-  }
+  if (rc_tokenizer != PARSER_OK) return rc_tokenizer;
 
-  int line_len_real = line_len;
-  while (line_len_real > 0)
-  {
-    const char c = line_buf[line_len_real - 1];
-    if ((c == '\n') || (c == '\r')) line_len_real--;
-    else break;
-  }
+  u8 addr_bytes[20];
 
-  if ((line_len_real != 40) && (line_len_real != 42))
-  {
-    log_error ("Ошибка: неверная длина входной строки (ожидается 40 или 42 символа)");
-    return PARSER_HASH_LENGTH;
-  }
+  hex_decode (token.buf[0], 40, addr_bytes);
 
-  const char *hash_str = line_buf;
-  int hash_len = line_len_real;
-
-  if ((hash_len == 42) && (hash_str[0] == '0') && (hash_str[1] == 'x' || hash_str[1] == 'X'))
-  {
-    hash_str += 2;
-    hash_len -= 2;
-  }
-
-  if (hash_len != 40)
-  {
-    log_error ("Ошибка: неверная длина хеша после опционального 0x (ожидается 40 символов)");
-    return PARSER_HASH_LENGTH;
-  }
-
-  u8 addr[20] = { 0 };
-
-  {
-    char tmp[41];
-    memcpy (tmp, hash_str, 40);
-    tmp[40] = '\0';
-
-    if (hex_to_bytes (tmp, 40, addr, NULL) == -1)
-    {
-      log_error ("Ошибка: недопустимые hex-символы в хеше");
-      return PARSER_HASH_ENCODING;
-    }
-  }
-
-  addr_u8_to_u32_LE (addr, digests_buf);
+  addr_u8_to_u32_le (addr_bytes, digest);
 
   return PARSER_OK;
 }
 
-static int cmp_hash (void *digest_buf1, void *digest_buf2)
+int module_hash_encode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const void *digest_buf, MAYBE_UNUSED const salt_t *salt, MAYBE_UNUSED const void *esalt_buf, MAYBE_UNUSED const void *hook_salt_buf, MAYBE_UNUSED const hashinfo_t *hash_info, char *line_buf, const int line_size)
 {
-  const u32 *d1 = ((const u32 *) digest_buf1) + DIGEST_M0;
-  const u32 *d2 = ((const u32 *) digest_buf2) + DIGEST_M0;
+  const u32 *digest = (const u32 *) digest_buf;
 
-  return memcmp (d1, d2, DGST_SIZE * 4);
-}
+  if (line_size < 43) return -1;
 
-static int hash_to_binary (void *digest_buf, char *line_buf, const int line_size, const int hash_encoding)
-{
-  (void) hash_encoding;
+  u8 addr_bytes[20];
 
-  if (line_buf == NULL) return 0;
-
-  const u32 *digests_buf = ((const u32 *) digest_buf) + DIGEST_M0;
-
-  u8 addr[20];
-  addr_u32_to_u8_LE (digests_buf, addr);
-
-  const int needed = 2 + 40;
-  if (line_size < (needed + 1))
-  {
-    log_error ("Ошибка: буфер вывода слишком мал в hash_to_binary");
-    return 0;
-  }
+  addr_u32_to_u8_le (digest, addr_bytes);
 
   line_buf[0] = '0';
   line_buf[1] = 'x';
 
-  if (bytes_to_hex_lower (addr, 20, line_buf + 2, 40) != 40)
-  {
-    log_error ("Ошибка: конвертация в hex в hash_to_binary завершилась неудачей");
-    return 0;
-  }
+  hex_encode (addr_bytes, 20, (u8 *) (line_buf + 2));
 
-  line_buf[2 + 40] = '\0';
+  line_buf[42] = '\0';
 
-  return needed;
+  return 42;
 }
 
-static void binary_to_hex (u8 *digest, char *hex_output, const int digest_len)
+void module_init (module_ctx_t *module_ctx)
 {
-  if ((digest == NULL) || (hex_output == NULL) || (digest_len < 0)) return;
+  module_ctx->module_context_size             = MODULE_CONTEXT_SIZE_CURRENT;
+  module_ctx->module_interface_version        = MODULE_INTERFACE_VERSION_CURRENT;
 
-  int rc = bytes_to_hex_lower (digest, digest_len, hex_output, digest_len * 2);
-  if (rc >= 0) hex_output[rc] = '\0';
+  module_ctx->module_attack_exec              = module_attack_exec;
+  module_ctx->module_benchmark_esalt          = MODULE_DEFAULT;
+  module_ctx->module_benchmark_hook_salt      = MODULE_DEFAULT;
+  module_ctx->module_benchmark_mask           = MODULE_DEFAULT;
+  module_ctx->module_benchmark_charset        = MODULE_DEFAULT;
+  module_ctx->module_benchmark_salt           = MODULE_DEFAULT;
+  module_ctx->module_bridge_name              = MODULE_DEFAULT;
+  module_ctx->module_bridge_type              = MODULE_DEFAULT;
+  module_ctx->module_build_plain_postprocess  = MODULE_DEFAULT;
+  module_ctx->module_deep_comp_kernel         = MODULE_DEFAULT;
+  module_ctx->module_deprecated_notice        = MODULE_DEFAULT;
+  module_ctx->module_dgst_pos0                = module_dgst_pos0;
+  module_ctx->module_dgst_pos1                = module_dgst_pos1;
+  module_ctx->module_dgst_pos2                = module_dgst_pos2;
+  module_ctx->module_dgst_pos3                = module_dgst_pos3;
+  module_ctx->module_dgst_size                = module_dgst_size;
+  module_ctx->module_dictstat_disable         = MODULE_DEFAULT;
+  module_ctx->module_esalt_size               = MODULE_DEFAULT;
+  module_ctx->module_extra_buffer_size        = MODULE_DEFAULT;
+  module_ctx->module_extra_tmp_size           = MODULE_DEFAULT;
+  module_ctx->module_extra_tuningdb_block     = MODULE_DEFAULT;
+  module_ctx->module_forced_outfile_format    = MODULE_DEFAULT;
+  module_ctx->module_hash_binary_count        = MODULE_DEFAULT;
+  module_ctx->module_hash_binary_parse        = MODULE_DEFAULT;
+  module_ctx->module_hash_binary_save         = MODULE_DEFAULT;
+  module_ctx->module_hash_decode_postprocess  = MODULE_DEFAULT;
+  module_ctx->module_hash_decode_potfile      = MODULE_DEFAULT;
+  module_ctx->module_hash_decode_zero_hash    = MODULE_DEFAULT;
+  module_ctx->module_hash_decode              = module_hash_decode;
+  module_ctx->module_hash_encode_status       = MODULE_DEFAULT;
+  module_ctx->module_hash_encode_potfile      = MODULE_DEFAULT;
+  module_ctx->module_hash_encode              = module_hash_encode;
+  module_ctx->module_hash_init_selftest       = MODULE_DEFAULT;
+  module_ctx->module_hash_mode                = MODULE_DEFAULT;
+  module_ctx->module_hash_category            = module_hash_category;
+  module_ctx->module_hash_name                = module_hash_name;
+  module_ctx->module_hashes_count_min         = MODULE_DEFAULT;
+  module_ctx->module_hashes_count_max         = MODULE_DEFAULT;
+  module_ctx->module_hlfmt_disable            = MODULE_DEFAULT;
+  module_ctx->module_hook_extra_param_size    = MODULE_DEFAULT;
+  module_ctx->module_hook_extra_param_init    = MODULE_DEFAULT;
+  module_ctx->module_hook_extra_param_term    = MODULE_DEFAULT;
+  module_ctx->module_hook12                   = MODULE_DEFAULT;
+  module_ctx->module_hook23                   = MODULE_DEFAULT;
+  module_ctx->module_hook_salt_size           = MODULE_DEFAULT;
+  module_ctx->module_hook_size                = MODULE_DEFAULT;
+  module_ctx->module_jit_build_options        = MODULE_DEFAULT;
+  module_ctx->module_jit_cache_disable        = MODULE_DEFAULT;
+  module_ctx->module_kernel_accel_max         = MODULE_DEFAULT;
+  module_ctx->module_kernel_accel_min         = MODULE_DEFAULT;
+  module_ctx->module_kernel_loops_max         = MODULE_DEFAULT;
+  module_ctx->module_kernel_loops_min         = MODULE_DEFAULT;
+  module_ctx->module_kernel_threads_max       = MODULE_DEFAULT;
+  module_ctx->module_kernel_threads_min       = MODULE_DEFAULT;
+  module_ctx->module_kern_type                = module_kern_type;
+  module_ctx->module_kern_type_dynamic        = MODULE_DEFAULT;
+  module_ctx->module_opti_type                = module_opti_type;
+  module_ctx->module_opts_type                = module_opts_type;
+  module_ctx->module_outfile_check_disable    = MODULE_DEFAULT;
+  module_ctx->module_outfile_check_nocomp     = MODULE_DEFAULT;
+  module_ctx->module_potfile_custom_check     = MODULE_DEFAULT;
+  module_ctx->module_potfile_disable          = MODULE_DEFAULT;
+  module_ctx->module_potfile_keep_all_hashes  = MODULE_DEFAULT;
+  module_ctx->module_pwdump_column            = MODULE_DEFAULT;
+  module_ctx->module_pw_max                   = MODULE_DEFAULT;
+  module_ctx->module_pw_min                   = MODULE_DEFAULT;
+  module_ctx->module_salt_max                 = MODULE_DEFAULT;
+  module_ctx->module_salt_min                 = MODULE_DEFAULT;
+  module_ctx->module_salt_type                = module_salt_type;
+  module_ctx->module_separator                = MODULE_DEFAULT;
+  module_ctx->module_st_hash                  = MODULE_DEFAULT;
+  module_ctx->module_st_pass                  = MODULE_DEFAULT;
+  module_ctx->module_tmp_size                 = MODULE_DEFAULT;
+  module_ctx->module_unstable_warning         = MODULE_DEFAULT;
+  module_ctx->module_warmup_disable           = MODULE_DEFAULT;
 }
-
-static void init_kernel (hashcat_ctx_t *hashcat_ctx, const u32 algo, const u32 opti_type)
-{
-  (void) hashcat_ctx;
-  (void) algo;
-  (void) opti_type;
-}
-
-static void module_init (module_ctx_t *module_ctx)
-{
-  module_ctx->module_name = MODULE_NAME;
-  module_ctx->short_module_desc = "Ethereum Brainwallet (SHA256 + secp256k1 + Keccak)";
-  module_ctx->long_module_desc = "Cracks Ethereum addresses from brainwallets using SHA256(priv) -> secp256k1 pubkey -> Keccak256(pub[1:])[-20:]";
-
-  module_ctx->supported_hash_types = SUPPORTED_TYPE;
-
-  module_ctx->attack_exec = ATTACK_EXEC_INSIDE_KERNEL;
-
-  module_ctx->kern_type = 1;
-  module_ctx->dgst_size = DGST_SIZE;
-  module_ctx->a0_file = KERN_FILE_A0;
-  module_ctx->a3_file = KERN_FILE_A3;
-
-  module_ctx->opti_type = OPTI_TYPE_ZERO_BYTE;
-
-  module_ctx->parse_func = parse_hash;
-  module_ctx->hash_to_binary_func = hash_to_binary;
-  module_ctx->cmp_hash_func = cmp_hash;
-
-  module_ctx->init_kernel_func = init_kernel;
-}
-
-module_register (module_99999);
