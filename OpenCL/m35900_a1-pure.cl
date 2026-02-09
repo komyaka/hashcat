@@ -15,7 +15,7 @@
 #include M2S(INCLUDE_PATH/inc_scalar.cl)
 #include M2S(INCLUDE_PATH/inc_hash_sha256.cl)
 #include M2S(INCLUDE_PATH/inc_hash_ripemd160.cl)
-#include M2S(INCLUDE_PATH/inc_ecc_secp256k1.cl)
+#include M2S(INCLUDE_PATH/inc_ecc_secp256k1_fast.cl)
 #endif
 
 KERNEL_FQ KERNEL_FA void m35900_mxx (KERN_ATTR_BASIC ())
