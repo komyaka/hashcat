@@ -2,13 +2,13 @@
  * Author......: See docs/credits.txt
  * License.....: MIT
  *
- * Module 99999: Bitcoin Brainwallet (secp256k1)
+ * Module 99998: Ethereum Brainwallet (Keccak-256, secp256k1)
  *
- * Attack concept from brainflayer: passphrase -> SHA256(passphrase) -> private key
- * -> secp256k1 public key -> SHA256(pubkey) -> RIPEMD160 -> Bitcoin P2PKH address (hash160)
+ * Attack concept from brainflayer: passphrase -> Keccak256(passphrase) -> private key
+ * -> secp256k1 public key -> Keccak256(pubkey[1:64]) -> last 20 bytes -> Ethereum address
  *
- * Input hash format: 40 hex chars representing the 20-byte hash160 of a Bitcoin P2PKH address
- * Example: passphrase "hashcat" -> SHA256 -> privkey -> compressed pubkey -> hash160
+ * Input hash format: 40 hex chars representing the 20-byte Ethereum address (without 0x prefix)
+ * Example: passphrase "hashcat" -> Keccak256 -> privkey -> uncompressed pubkey -> Keccak256 -> addr
  */
 
 #include "common.h"
@@ -25,15 +25,15 @@ static const u32   DGST_POS2      = 2;
 static const u32   DGST_POS3      = 3;
 static const u32   DGST_SIZE      = DGST_SIZE_4_5;
 static const u32   HASH_CATEGORY  = HASH_CATEGORY_CRYPTOCURRENCY_WALLET;
-static const char *HASH_NAME      = "Bitcoin Brainwallet (SHA256, secp256k1, P2PKH)";
-static const u64   KERN_TYPE      = 99999;
+static const char *HASH_NAME      = "Ethereum Brainwallet (Keccak-256, secp256k1)";
+static const u64   KERN_TYPE      = 99998;
 static const u32   OPTI_TYPE      = OPTI_TYPE_ZERO_BYTE
                                   | OPTI_TYPE_NOT_SALTED;
 static const u64   OPTS_TYPE      = OPTS_TYPE_STOCK_MODULE
-                                  | OPTS_TYPE_PT_GENERATE_BE;
+                                  | OPTS_TYPE_PT_GENERATE_LE;
 static const u32   SALT_TYPE      = SALT_TYPE_NONE;
 static const char *ST_PASS        = "hashcat";
-static const char *ST_HASH        = "b4300645c705a59be76c0507e1ef39e2ae42f58a";
+static const char *ST_HASH        = "0000000000000000000000000000000000000000"; /* placeholder: actual Ethereum address depends on kernel computation */
 
 u32         module_attack_exec    (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return ATTACK_EXEC;     }
 u32         module_dgst_pos0      (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return DGST_POS0;       }
