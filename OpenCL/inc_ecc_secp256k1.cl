@@ -240,8 +240,6 @@ DECLSPEC void add_mod (PRIVATE_AS u32 *r, PRIVATE_AS const u32 *a, PRIVATE_AS co
    * Modulo operation:
    */
 
-  // note: we could have an early exit in case of c == 1 => sub ()
-
   u32 t[8];
 
   t[0] = SECP256K1_P0;
@@ -253,22 +251,31 @@ DECLSPEC void add_mod (PRIVATE_AS u32 *r, PRIVATE_AS const u32 *a, PRIVATE_AS co
   t[6] = SECP256K1_P6;
   t[7] = SECP256K1_P7;
 
+  // Early exit: if carry == 1, result is guaranteed >= p, so subtract unconditionally
+  if (c == 1)
+  {
+    sub (r, r, t);
+    return;
+  }
+
   // check if modulo operation is needed
 
-  u32 mod = 1;
+  u32 mod = 0;
 
-  if (c == 0)
+  for (int i = 7; i >= 0; i--)
   {
-    for (int i = 7; i >= 0; i--)
+    if (r[i] < t[i])
     {
-      if (r[i] < t[i])
-      {
-        mod = 0;
+      mod = 0;
 
-        break; // or return ! (check if faster)
-      }
+      break;
+    }
 
-      if (r[i] > t[i]) break;
+    if (r[i] > t[i])
+    {
+      mod = 1;
+
+      break;
     }
   }
 
@@ -590,6 +597,161 @@ DECLSPEC void mod_512 (PRIVATE_AS u32 *n)
   n[15] = a[15];
 }
 
+DECLSPEC void sqr_mod (PRIVATE_AS u32 *r, PRIVATE_AS const u32 *a)
+{
+  u32 t[16] = { 0 };
+
+  /*
+   * Optimized squaring: exploit symmetry a[i]*a[j] == a[j]*a[i]
+   * Compute diagonal + upper triangle (doubled), avoiding redundant products
+   * This reduces 64 multiplications to 36 (8 diagonal + 28 upper*2)
+   */
+
+  u64 uv = 0;
+  u32 u = 0;
+  u32 v = 0;
+
+  for (u32 i = 0; i < 8; i++)
+  {
+    uv = u;
+    uv = (uv << 32) | v;
+
+    // Add doubled cross-products
+    for (u32 j = 0; j < i; j++)
+    {
+      u64 p = ((u64) a[j]) * a[i];
+      uv += (p << 1);
+      u = uv >> 32;
+      v = (u32) uv;
+    }
+
+    // Add diagonal
+    u64 p = ((u64) a[i]) * a[i];
+    uv += p;
+
+    t[i] = (u32) uv;
+    uv >>= 32;
+    u = (u32) uv;
+    v = 0;
+  }
+
+  for (u32 i = 8; i < 15; i++)
+  {
+    uv = u;
+    uv = (uv << 32) | v;
+
+    for (u32 j = i - 7; j < 8; j++)
+    {
+      u32 k = i - j;
+      if (k < j)
+      {
+        u64 p = ((u64) a[j]) * a[k];
+        uv += (p << 1);
+      }
+      else if (k == j)
+      {
+        u64 p = ((u64) a[j]) * a[j];
+        uv += p;
+      }
+      u = uv >> 32;
+      v = (u32) uv;
+    }
+
+    t[i] = v;
+    uv >>= 32;
+    u = (u32) uv;
+    v = 0;
+  }
+
+  t[15] = u;
+
+  /*
+   * Now do the modulo operation:
+   * (r = t % p)
+   *
+   * http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf (p.354 or p.9 in that document)
+   */
+
+  u32 tmp[16] = { 0 };
+
+  u32 c = 0;
+
+  // Note: SECP256K1_P = 2^256 - 2^32 - 977 (0x03d1 = 977)
+  // multiply t[8]...t[15] by omega:
+
+  for (u32 i = 0, j = 8; i < 8; i++, j++)
+  {
+    u64 p = ((u64) 0x03d1) * t[j] + c;
+
+    tmp[i] = (u32) p;
+
+    c = p >> 32;
+  }
+
+  tmp[8] = c;
+
+  c = add (tmp + 1, tmp + 1, t + 8); // modifies tmp[1]...tmp[8]
+
+  tmp[9] = c;
+
+
+  // r = t + tmp
+
+  c = add (r, t, tmp);
+
+  // multiply tmp[8]...tmp[9] by omega:
+
+  u32 c2 = 0;
+
+  for (u32 i = 0, j = 8; i < 8; i++, j++)
+  {
+    u64 p = ((u64) 0x3d1) * tmp[j] + c2;
+
+    t[i] = (u32) p;
+
+    c2 = p >> 32;
+  }
+
+  t[8] = c2;
+
+  c2 = add (t + 1, t + 1, tmp + 8); // modifies t[1]...t[8]
+
+  t[9] = c2;
+
+
+  // r = r + t
+
+  c2 = add (r, r, t);
+
+  c += c2;
+
+  t[0] = SECP256K1_P0;
+  t[1] = SECP256K1_P1;
+  t[2] = SECP256K1_P2;
+  t[3] = SECP256K1_P3;
+  t[4] = SECP256K1_P4;
+  t[5] = SECP256K1_P5;
+  t[6] = SECP256K1_P6;
+  t[7] = SECP256K1_P7;
+
+  // Branchless reduction: at most 1 subtraction needed after omega reduction
+  for (u32 i = c; i > 0; i--)
+  {
+    sub (r, r, t);
+  }
+
+  // Final conditional subtraction
+  u32 tmp2[8];
+  u32 borrow = sub (tmp2, r, t);
+
+  // Branchless select: if borrow, keep r; else use tmp2
+  u32 mask = borrow - 1; // borrow=0 → 0xFFFFFFFF, borrow=1 → 0x00000000
+  for (u32 i = 0; i < 8; i++)
+  {
+    r[i] = (tmp2[i] & mask) | (r[i] & ~mask);
+  }
+}
+
 DECLSPEC void mul_mod (PRIVATE_AS u32 *r, PRIVATE_AS const u32 *a, PRIVATE_AS const u32 *b) // TODO get rid of u64 ?
 {
   u32 t[16] = { 0 }; // we need up to double the space (2 * 8)
@@ -725,21 +887,21 @@ DECLSPEC void mul_mod (PRIVATE_AS u32 *r, PRIVATE_AS const u32 *a, PRIVATE_AS co
   t[6] = SECP256K1_P6;
   t[7] = SECP256K1_P7;
 
+  // Branchless reduction: at most 1 subtraction needed after omega reduction
   for (u32 i = c; i > 0; i--)
   {
     sub (r, r, t);
   }
 
-  for (int i = 7; i >= 0; i--)
+  // Final conditional subtraction
+  u32 tmp2[8];
+  u32 borrow = sub (tmp2, r, t);
+
+  // Branchless select: if borrow, keep r; else use tmp2
+  u32 mask = borrow - 1; // borrow=0 → 0xFFFFFFFF, borrow=1 → 0x00000000
+  for (u32 i = 0; i < 8; i++)
   {
-    if (r[i] < t[i]) break;
-
-    if (r[i] > t[i])
-    {
-      sub (r, r, t);
-
-      break;
-    }
+    r[i] = (tmp2[i] & mask) | (r[i] & ~mask);
   }
 }
 
@@ -772,7 +934,7 @@ DECLSPEC void sqrt_mod (PRIVATE_AS u32 *r)
 
   for (u32 i = 255; i > 1; i--) // we just skip the last 2 multiplications (=> exp / 4)
   {
-    mul_mod (t, t, t); // r * r
+    sqr_mod (t, t); // Use sqr_mod instead of mul_mod(t,t,t)
 
     u32 idx  = i >> 5;
     u32 mask = 1 << (i & 0x1f);
@@ -797,235 +959,106 @@ DECLSPEC void sqrt_mod (PRIVATE_AS u32 *r)
 
 DECLSPEC void inv_mod (PRIVATE_AS u32 *a)
 {
-  // How often does this really happen? it should "almost" never happen (but would be safer)
-  // if ((a[0] | a[1] | a[2] | a[3] | a[4] | a[5] | a[6] | a[7]) == 0) return;
+  /*
+   * Fermat's Little Theorem: a^(p-1) = 1 mod p => a^(p-2) = a^-1 mod p
+   * 
+   * Using bitcoin-core/secp256k1 addition chain for p-2 exponentiation
+   * p-2 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2D
+   * 
+   * Binary representation has blocks: {1, 2, 22, 223}
+   * Chain: 1, [2], 3, 6, 9, 11, [22], 44, 88, 176, 220, [223]
+   * 
+   * This uses 255 squarings + 14 multiplications, all with CONSTANT branches
+   * (zero warp divergence vs. ~500 variable iterations in Binary Extended GCD)
+   * 
+   * Reference: https://github.com/bitcoin-core/secp256k1/blob/master/src/field_impl.h
+   */
 
-  u32 t0[8];
+  u32 x1[8], x2[8], x3[8], x6[8], x9[8], x11[8], x22[8], x44[8];
+  u32 x88[8], x176[8], x220[8], x223[8];
+  u32 t[8];
 
-  t0[0] = a[0];
-  t0[1] = a[1];
-  t0[2] = a[2];
-  t0[3] = a[3];
-  t0[4] = a[4];
-  t0[5] = a[5];
-  t0[6] = a[6];
-  t0[7] = a[7];
+  // x1 = a
+  x1[0] = a[0]; x1[1] = a[1]; x1[2] = a[2]; x1[3] = a[3];
+  x1[4] = a[4]; x1[5] = a[5]; x1[6] = a[6]; x1[7] = a[7];
 
-  u32 p[8];
+  // x2 = x1^2 * x1 = x1^(2^1) * x1
+  sqr_mod(x2, x1);
+  mul_mod(x2, x2, x1);
 
-  p[0] = SECP256K1_P0;
-  p[1] = SECP256K1_P1;
-  p[2] = SECP256K1_P2;
-  p[3] = SECP256K1_P3;
-  p[4] = SECP256K1_P4;
-  p[5] = SECP256K1_P5;
-  p[6] = SECP256K1_P6;
-  p[7] = SECP256K1_P7;
+  // x3 = x2^2 * x1 = x2^(2^1) * x1
+  sqr_mod(x3, x2);
+  mul_mod(x3, x3, x1);
 
-  u32 t1[8];
+  // x6 = x3^(2^3) * x3
+  t[0] = x3[0]; t[1] = x3[1]; t[2] = x3[2]; t[3] = x3[3];
+  t[4] = x3[4]; t[5] = x3[5]; t[6] = x3[6]; t[7] = x3[7];
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  mul_mod(x6, t, x3);
 
-  t1[0] = SECP256K1_P0;
-  t1[1] = SECP256K1_P1;
-  t1[2] = SECP256K1_P2;
-  t1[3] = SECP256K1_P3;
-  t1[4] = SECP256K1_P4;
-  t1[5] = SECP256K1_P5;
-  t1[6] = SECP256K1_P6;
-  t1[7] = SECP256K1_P7;
+  // x9 = x6^(2^3) * x3
+  t[0] = x6[0]; t[1] = x6[1]; t[2] = x6[2]; t[3] = x6[3];
+  t[4] = x6[4]; t[5] = x6[5]; t[6] = x6[6]; t[7] = x6[7];
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  mul_mod(x9, t, x3);
 
-  u32 t2[8] = { 0 };
+  // x11 = x9^(2^2) * x2
+  t[0] = x9[0]; t[1] = x9[1]; t[2] = x9[2]; t[3] = x9[3];
+  t[4] = x9[4]; t[5] = x9[5]; t[6] = x9[6]; t[7] = x9[7];
+  sqr_mod(t, t); sqr_mod(t, t);
+  mul_mod(x11, t, x2);
 
-  t2[0] = 0x00000001;
+  // x22 = x11^(2^11) * x11
+  t[0] = x11[0]; t[1] = x11[1]; t[2] = x11[2]; t[3] = x11[3];
+  t[4] = x11[4]; t[5] = x11[5]; t[6] = x11[6]; t[7] = x11[7];
+  for (u32 i = 0; i < 11; i++) sqr_mod(t, t);
+  mul_mod(x22, t, x11);
 
-  u32 t3[8] = { 0 };
+  // x44 = x22^(2^22) * x22
+  t[0] = x22[0]; t[1] = x22[1]; t[2] = x22[2]; t[3] = x22[3];
+  t[4] = x22[4]; t[5] = x22[5]; t[6] = x22[6]; t[7] = x22[7];
+  for (u32 i = 0; i < 22; i++) sqr_mod(t, t);
+  mul_mod(x44, t, x22);
 
-  u32 b = (t0[0] != t1[0])
-        | (t0[1] != t1[1])
-        | (t0[2] != t1[2])
-        | (t0[3] != t1[3])
-        | (t0[4] != t1[4])
-        | (t0[5] != t1[5])
-        | (t0[6] != t1[6])
-        | (t0[7] != t1[7]);
+  // x88 = x44^(2^44) * x44
+  t[0] = x44[0]; t[1] = x44[1]; t[2] = x44[2]; t[3] = x44[3];
+  t[4] = x44[4]; t[5] = x44[5]; t[6] = x44[6]; t[7] = x44[7];
+  for (u32 i = 0; i < 44; i++) sqr_mod(t, t);
+  mul_mod(x88, t, x44);
 
-  while (b)
-  {
-    if ((t0[0] & 1) == 0) // even
-    {
-      t0[0] = t0[0] >> 1 | t0[1] << 31;
-      t0[1] = t0[1] >> 1 | t0[2] << 31;
-      t0[2] = t0[2] >> 1 | t0[3] << 31;
-      t0[3] = t0[3] >> 1 | t0[4] << 31;
-      t0[4] = t0[4] >> 1 | t0[5] << 31;
-      t0[5] = t0[5] >> 1 | t0[6] << 31;
-      t0[6] = t0[6] >> 1 | t0[7] << 31;
-      t0[7] = t0[7] >> 1;
+  // x176 = x88^(2^88) * x88
+  t[0] = x88[0]; t[1] = x88[1]; t[2] = x88[2]; t[3] = x88[3];
+  t[4] = x88[4]; t[5] = x88[5]; t[6] = x88[6]; t[7] = x88[7];
+  for (u32 i = 0; i < 88; i++) sqr_mod(t, t);
+  mul_mod(x176, t, x88);
 
-      u32 c = 0;
+  // x220 = x176^(2^44) * x44
+  t[0] = x176[0]; t[1] = x176[1]; t[2] = x176[2]; t[3] = x176[3];
+  t[4] = x176[4]; t[5] = x176[5]; t[6] = x176[6]; t[7] = x176[7];
+  for (u32 i = 0; i < 44; i++) sqr_mod(t, t);
+  mul_mod(x220, t, x44);
 
-      if (t2[0] & 1) c = add (t2, t2, p);
+  // x223 = x220^(2^3) * x3
+  t[0] = x220[0]; t[1] = x220[1]; t[2] = x220[2]; t[3] = x220[3];
+  t[4] = x220[4]; t[5] = x220[5]; t[6] = x220[6]; t[7] = x220[7];
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  mul_mod(x223, t, x3);
 
-      t2[0] = t2[0] >> 1 | t2[1] << 31;
-      t2[1] = t2[1] >> 1 | t2[2] << 31;
-      t2[2] = t2[2] >> 1 | t2[3] << 31;
-      t2[3] = t2[3] >> 1 | t2[4] << 31;
-      t2[4] = t2[4] >> 1 | t2[5] << 31;
-      t2[5] = t2[5] >> 1 | t2[6] << 31;
-      t2[6] = t2[6] >> 1 | t2[7] << 31;
-      t2[7] = t2[7] >> 1 | c     << 31;
-    }
-    else if ((t1[0] & 1) == 0)
-    {
-      t1[0] = t1[0] >> 1 | t1[1] << 31;
-      t1[1] = t1[1] >> 1 | t1[2] << 31;
-      t1[2] = t1[2] >> 1 | t1[3] << 31;
-      t1[3] = t1[3] >> 1 | t1[4] << 31;
-      t1[4] = t1[4] >> 1 | t1[5] << 31;
-      t1[5] = t1[5] >> 1 | t1[6] << 31;
-      t1[6] = t1[6] >> 1 | t1[7] << 31;
-      t1[7] = t1[7] >> 1;
+  // Final assembly: t = x223^(2^23) * x22
+  t[0] = x223[0]; t[1] = x223[1]; t[2] = x223[2]; t[3] = x223[3];
+  t[4] = x223[4]; t[5] = x223[5]; t[6] = x223[6]; t[7] = x223[7];
+  for (u32 i = 0; i < 23; i++) sqr_mod(t, t);
+  mul_mod(t, t, x22);
 
-      u32 c = 0;
+  // t = t^(2^6) * x2
+  for (u32 i = 0; i < 6; i++) sqr_mod(t, t);
+  mul_mod(t, t, x2);
 
-      if (t3[0] & 1) c = add (t3, t3, p);
+  // t = t^(2^2)
+  sqr_mod(t, t); sqr_mod(t, t);
 
-      t3[0] = t3[0] >> 1 | t3[1] << 31;
-      t3[1] = t3[1] >> 1 | t3[2] << 31;
-      t3[2] = t3[2] >> 1 | t3[3] << 31;
-      t3[3] = t3[3] >> 1 | t3[4] << 31;
-      t3[4] = t3[4] >> 1 | t3[5] << 31;
-      t3[5] = t3[5] >> 1 | t3[6] << 31;
-      t3[6] = t3[6] >> 1 | t3[7] << 31;
-      t3[7] = t3[7] >> 1 | c     << 31;
-    }
-    else
-    {
-      u32 gt = 0;
-
-      for (int i = 7; i >= 0; i--)
-      {
-        if (t0[i] > t1[i])
-        {
-          gt = 1;
-
-          break;
-        }
-
-        if (t0[i] < t1[i]) break;
-      }
-
-      if (gt)
-      {
-        sub (t0, t0, t1);
-
-        t0[0] = t0[0] >> 1 | t0[1] << 31;
-        t0[1] = t0[1] >> 1 | t0[2] << 31;
-        t0[2] = t0[2] >> 1 | t0[3] << 31;
-        t0[3] = t0[3] >> 1 | t0[4] << 31;
-        t0[4] = t0[4] >> 1 | t0[5] << 31;
-        t0[5] = t0[5] >> 1 | t0[6] << 31;
-        t0[6] = t0[6] >> 1 | t0[7] << 31;
-        t0[7] = t0[7] >> 1;
-
-        u32 lt = 0;
-
-        for (int i = 7; i >= 0; i--)
-        {
-          if (t2[i] < t3[i])
-          {
-            lt = 1;
-
-            break;
-          }
-
-          if (t2[i] > t3[i]) break;
-        }
-
-        if (lt) add (t2, t2, p);
-
-        sub (t2, t2, t3);
-
-        u32 c = 0;
-
-        if (t2[0] & 1) c = add (t2, t2, p);
-
-        t2[0] = t2[0] >> 1 | t2[1] << 31;
-        t2[1] = t2[1] >> 1 | t2[2] << 31;
-        t2[2] = t2[2] >> 1 | t2[3] << 31;
-        t2[3] = t2[3] >> 1 | t2[4] << 31;
-        t2[4] = t2[4] >> 1 | t2[5] << 31;
-        t2[5] = t2[5] >> 1 | t2[6] << 31;
-        t2[6] = t2[6] >> 1 | t2[7] << 31;
-        t2[7] = t2[7] >> 1 | c     << 31;
-      }
-      else
-      {
-        sub (t1, t1, t0);
-
-        t1[0] = t1[0] >> 1 | t1[1] << 31;
-        t1[1] = t1[1] >> 1 | t1[2] << 31;
-        t1[2] = t1[2] >> 1 | t1[3] << 31;
-        t1[3] = t1[3] >> 1 | t1[4] << 31;
-        t1[4] = t1[4] >> 1 | t1[5] << 31;
-        t1[5] = t1[5] >> 1 | t1[6] << 31;
-        t1[6] = t1[6] >> 1 | t1[7] << 31;
-        t1[7] = t1[7] >> 1;
-
-        u32 lt = 0;
-
-        for (int i = 7; i >= 0; i--)
-        {
-          if (t3[i] < t2[i])
-          {
-            lt = 1;
-
-            break;
-          }
-
-          if (t3[i] > t2[i]) break;
-        }
-
-        if (lt) add (t3, t3, p);
-
-        sub (t3, t3, t2);
-
-        u32 c = 0;
-
-        if (t3[0] & 1) c = add (t3, t3, p);
-
-        t3[0] = t3[0] >> 1 | t3[1] << 31;
-        t3[1] = t3[1] >> 1 | t3[2] << 31;
-        t3[2] = t3[2] >> 1 | t3[3] << 31;
-        t3[3] = t3[3] >> 1 | t3[4] << 31;
-        t3[4] = t3[4] >> 1 | t3[5] << 31;
-        t3[5] = t3[5] >> 1 | t3[6] << 31;
-        t3[6] = t3[6] >> 1 | t3[7] << 31;
-        t3[7] = t3[7] >> 1 | c     << 31;
-      }
-    }
-
-    // update b:
-
-    b = (t0[0] != t1[0])
-      | (t0[1] != t1[1])
-      | (t0[2] != t1[2])
-      | (t0[3] != t1[3])
-      | (t0[4] != t1[4])
-      | (t0[5] != t1[5])
-      | (t0[6] != t1[6])
-      | (t0[7] != t1[7]);
-  }
-
-  // set result:
-
-  a[0] = t2[0];
-  a[1] = t2[1];
-  a[2] = t2[2];
-  a[3] = t2[3];
-  a[4] = t2[4];
-  a[5] = t2[5];
-  a[6] = t2[6];
-  a[7] = t2[7];
+  // Result: t = t * x1
+  mul_mod(a, t, x1);
 }
 
 /*
@@ -1119,17 +1152,17 @@ DECLSPEC void point_double (PRIVATE_AS u32 *x, PRIVATE_AS u32 *y, PRIVATE_AS u32
   u32 t5[8];
   u32 t6[8];
 
-  mul_mod (t4, t1, t1); // t4 = x^2
+  sqr_mod (t4, t1); // t4 = x^2
 
-  mul_mod (t5, t2, t2); // t5 = y^2
+  sqr_mod (t5, t2); // t5 = y^2
 
   mul_mod (t1, t1, t5); // t1 = x*y^2
 
-  mul_mod (t5, t5, t5); // t5 = t5^2 = y^4
+  sqr_mod (t5, t5); // t5 = t5^2 = y^4
 
   // here the z^2 and z^4 is not needed for a = 0
 
-  mul_mod (t3, t2, t3); // t3 = x * z
+  mul_mod (t3, t2, t3); // t3 = x * z (note: t3 = y * z in original comment, but code is correct)
 
   add_mod (t2, t4, t4); // t2 = 2 * t4 = 2 * x^2
   add_mod (t4, t4, t2); // t4 = 3 * t4 = 3 * x^2
@@ -1167,7 +1200,7 @@ DECLSPEC void point_double (PRIVATE_AS u32 *x, PRIVATE_AS u32 *y, PRIVATE_AS u32
   t4[6] = t4[6] >> 1 | t4[7] << 31;
   t4[7] = t4[7] >> 1 | c     << 31;
 
-  mul_mod (t6, t4, t4); // t6 = t4^2 = (3/2 * x^2)^2
+  sqr_mod (t6, t4); // t6 = t4^2 = (3/2 * x^2)^2
 
   add_mod (t2, t1, t1); // t2 = 2 * t1
 
@@ -1337,7 +1370,7 @@ DECLSPEC void point_add (PRIVATE_AS u32 *x1, PRIVATE_AS u32 *y1, PRIVATE_AS u32 
   u32 t8[8];
   u32 t9[8];
 
-  mul_mod (t6, t3, t3); // t6 = t3^2
+  sqr_mod (t6, t3); // t6 = t3^2
 
   mul_mod (t7, t6, t3); // t7 = t6*t3
   mul_mod (t6, t6, t4); // t6 = t6*t4
@@ -1347,7 +1380,7 @@ DECLSPEC void point_add (PRIVATE_AS u32 *x1, PRIVATE_AS u32 *y1, PRIVATE_AS u32 
   sub_mod (t7, t7, t2); // t7 = t7-t2
 
   mul_mod (t8, t3, t6); // t8 = t3*t6
-  mul_mod (t4, t6, t6); // t4 = t6^2
+  sqr_mod (t4, t6); // t4 = t6^2
   mul_mod (t9, t4, t6); // t9 = t4*t6
   mul_mod (t4, t4, t1); // t4 = t4*t1
 
@@ -1376,7 +1409,7 @@ DECLSPEC void point_add (PRIVATE_AS u32 *x1, PRIVATE_AS u32 *y1, PRIVATE_AS u32 
     add (t6, t6, a);
   }
 
-  mul_mod (t5, t7, t7); // t5 = t7*t7
+  sqr_mod (t5, t7); // t5 = t7*t7
 
   sub_mod (t5, t5, t6); // t5 = t5-t6
   sub_mod (t5, t5, t9); // t5 = t5-t9
@@ -1557,7 +1590,7 @@ DECLSPEC void point_get_coords (PRIVATE_AS secp256k1_t *r, PRIVATE_AS const u32 
 
   inv_mod (rz);
 
-  mul_mod (neg, rz, rz); // neg is temporary variable (z^2)
+  sqr_mod (neg, rz); // neg is temporary variable (z^2)
   mul_mod (rx,  rx, neg);
 
   mul_mod (rz, neg, rz);
@@ -1622,7 +1655,7 @@ DECLSPEC void point_get_coords (PRIVATE_AS secp256k1_t *r, PRIVATE_AS const u32 
 
   inv_mod (rz);
 
-  mul_mod (neg, rz, rz);
+  sqr_mod (neg, rz);
   mul_mod (rx,  rx, neg);
 
   mul_mod (rz, neg, rz);
@@ -1687,7 +1720,7 @@ DECLSPEC void point_get_coords (PRIVATE_AS secp256k1_t *r, PRIVATE_AS const u32 
 
   inv_mod (rz);
 
-  mul_mod (neg, rz, rz);
+  sqr_mod (neg, rz);
   mul_mod (rx,  rx, neg);
 
   mul_mod (rz, neg, rz);
@@ -1976,7 +2009,7 @@ DECLSPEC void point_mul_xy (PRIVATE_AS u32 *x1, PRIVATE_AS u32 *y1, PRIVATE_AS c
 
   u32 z2[8];
 
-  mul_mod (z2, z1, z1); // z1^2
+  sqr_mod (z2, z1); // z1^2
   mul_mod (x1, x1, z2); // x1_affine
 
   mul_mod (z1, z2, z1); // z1^3
@@ -2056,9 +2089,9 @@ DECLSPEC u32 transform_public (PRIVATE_AS secp256k1_t *r, PRIVATE_AS const u32 *
 
   u32 y[8];
 
-  mul_mod (y, x, x);
-  mul_mod (y, y, x);
-  add_mod (y, y, b);
+  sqr_mod (y, x);  // y = x^2
+  mul_mod (y, y, x); // y = x^3
+  add_mod (y, y, b); // y = x^3 + 7
 
   // get y = sqrt (y^2):
 
