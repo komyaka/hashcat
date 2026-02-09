@@ -150,7 +150,7 @@ DECLSPEC void sha3_256_hash (PRIVATE_AS const u32 *pw, const u32 pw_len, PRIVATE
     const u32 abs_pos = pw_base + b;
     const u32 widx = abs_pos / 4;
     const u32 bidx = abs_pos % 4;
-    const u64 byte_val = ((u64)((pw[widx] >> (bidx * 8)) & 0xff));
+    const u64 byte_val = (u64)((pw[widx] >> (bidx * 8)) & 0xff);
     lane |= byte_val << (b * 8);
   }
 
