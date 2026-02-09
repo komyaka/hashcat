@@ -2,16 +2,14 @@
  * Author......: See docs/credits.txt
  * License.....: MIT
  *
- * Module 99997: Bitcoin/Ethereum SHA256 Brainwallet (SHA256, secp256k1, RIPEMD-160)
+ * Module 99997: Bitcoin/Ethereum SHA256 Brainwallet (SHA256, secp256k1)
  *
- * Attack concept from brainflayer: passphrase -> SHA256(passphrase) -> private key
- * -> secp256k1 public key -> SHA256(pubkey) -> RIPEMD160 -> hash160
+ * Attack concept from brainflayer: passphrase -> SHA256(passphrase) -> 256-bit private key
  *
- * This variant uses SHA256 for both the passphrase-to-private-key derivation
- * and the public key hashing step (Bitcoin-style SHA256+RIPEMD160).
- *
- * Input hash format: 64 hex chars representing the SHA256 hash of the passphrase
- * which serves as the secp256k1 private key
+ * This module represents the first step of the brainwallet derivation:
+ * computing SHA256(passphrase) to obtain the secp256k1 private key.
+ * The input hash is the raw SHA256 digest (64 hex chars) of the passphrase.
+ * The GPU kernel would then derive the public key and address from this private key.
  */
 
 #include "common.h"
