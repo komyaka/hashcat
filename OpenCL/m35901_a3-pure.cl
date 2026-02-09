@@ -250,6 +250,31 @@ KERNEL_FQ KERNEL_FA void m35901_mxx (KERN_ATTR_VECTOR ())
     ripemd160_update_swap (&rctx, tmp, 32);
     ripemd160_final       (&rctx);
 
+    // Check if address type is P2SH (salt_buf[0] == 1)
+    const u32 addr_type = salt_bufs[SALT_POS_HOST].salt_buf[0];
+
+    if (addr_type == 1)
+    {
+      // P2SH: compute HASH160(0x0014 || hash160)
+      tmp[0] = (rctx.h[0] << 16) | (0x1400);
+      tmp[1] = (rctx.h[1] << 16) | (rctx.h[0] >> 16);
+      tmp[2] = (rctx.h[2] << 16) | (rctx.h[1] >> 16);
+      tmp[3] = (rctx.h[3] << 16) | (rctx.h[2] >> 16);
+      tmp[4] = (rctx.h[4] << 16) | (rctx.h[3] >> 16);
+      tmp[5] = (rctx.h[4] >> 16);
+      for (u32 i = 6; i < 16; i++) tmp[i] = 0;
+
+      sha256_init        (&ctx);
+      sha256_update_swap (&ctx, tmp, 22);
+      sha256_final       (&ctx);
+
+      for (u32 i = 0; i < 8; i++) tmp[i] = ctx.h[i];
+
+      ripemd160_init        (&rctx);
+      ripemd160_update_swap (&rctx, tmp, 32);
+      ripemd160_final       (&rctx);
+    }
+
     const u32 r0 = rctx.h[0];
     const u32 r1 = rctx.h[1];
     const u32 r2 = rctx.h[2];
@@ -347,6 +372,31 @@ KERNEL_FQ KERNEL_FA void m35901_sxx (KERN_ATTR_VECTOR ())
     ripemd160_init        (&rctx);
     ripemd160_update_swap (&rctx, tmp, 32);
     ripemd160_final       (&rctx);
+
+    // Check if address type is P2SH (salt_buf[0] == 1)
+    const u32 addr_type = salt_bufs[SALT_POS_HOST].salt_buf[0];
+
+    if (addr_type == 1)
+    {
+      // P2SH: compute HASH160(0x0014 || hash160)
+      tmp[0] = (rctx.h[0] << 16) | (0x1400);
+      tmp[1] = (rctx.h[1] << 16) | (rctx.h[0] >> 16);
+      tmp[2] = (rctx.h[2] << 16) | (rctx.h[1] >> 16);
+      tmp[3] = (rctx.h[3] << 16) | (rctx.h[2] >> 16);
+      tmp[4] = (rctx.h[4] << 16) | (rctx.h[3] >> 16);
+      tmp[5] = (rctx.h[4] >> 16);
+      for (u32 i = 6; i < 16; i++) tmp[i] = 0;
+
+      sha256_init        (&ctx);
+      sha256_update_swap (&ctx, tmp, 22);
+      sha256_final       (&ctx);
+
+      for (u32 i = 0; i < 8; i++) tmp[i] = ctx.h[i];
+
+      ripemd160_init        (&rctx);
+      ripemd160_update_swap (&rctx, tmp, 32);
+      ripemd160_final       (&rctx);
+    }
 
     const u32 r0 = rctx.h[0];
     const u32 r1 = rctx.h[1];
