@@ -265,7 +265,7 @@ DECLSPEC void add_mod (PRIVATE_AS u32 *r, PRIVATE_AS const u32 *a, PRIVATE_AS co
   t[7] = SECP256K1_P7;
 
   u32 mod = 0;
-  
+
   for (int i = 7; i >= 0; i--)
   {
     if (r[i] < t[i])
@@ -831,7 +831,7 @@ DECLSPEC void inv_mod (PRIVATE_AS u32 *a)
   t[0] = 1;
   
   // Left-to-right binary exponentiation
-  for (u32 i = 255; i != (u32)-1; i--)
+  for (int i = 255; i >= 0; i--)
   {
     mul_mod (t, t, t); // square
     
