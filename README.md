@@ -61,11 +61,11 @@ In order to maintain the quality and integrity of the **hashcat** source tree, a
 
 | Режим | Описание | Хеш парольной фразы | Получение адреса |
 |-------|----------|---------------------|------------------|
-| 35900 | Bitcoin Brainwallet (SHA-256) | SHA-256 | RIPEMD160(SHA256(compressed\_pubkey)) → Base58Check |
-| 35901 | Bitcoin Brainwallet (SHA3-256) | SHA3-256 | RIPEMD160(SHA256(compressed\_pubkey)) → Base58Check |
-| 35902 | Ethereum Brainwallet (Keccak-256) | Keccak-256 | Keccak256(uncompressed\_pubkey)\[12:\] → 0x hex |
-| 35903 | Ethereum Brainwallet (SHA-256) | SHA-256 | Keccak256(uncompressed\_pubkey)\[12:\] → 0x hex |
-| 35904 | Ethereum Brainwallet (SHA3-256) | SHA3-256 | Keccak256(uncompressed\_pubkey)\[12:\] → 0x hex |
+| 35900 | Bitcoin Brainwallet (SHA-256) | SHA-256 | RIPEMD160(SHA256(compressed_pubkey)) → Base58Check |
+| 35901 | Bitcoin Brainwallet (SHA3-256) | SHA3-256 | RIPEMD160(SHA256(compressed_pubkey)) → Base58Check |
+| 35902 | Ethereum Brainwallet (Keccak-256) | Keccak-256 | Keccak256(uncompressed_pubkey)[12:] → 0x hex |
+| 35903 | Ethereum Brainwallet (SHA-256) | SHA-256 | Keccak256(uncompressed_pubkey)[12:] → 0x hex |
+| 35904 | Ethereum Brainwallet (SHA3-256) | SHA3-256 | Keccak256(uncompressed_pubkey)[12:] → 0x hex |
 
 #### Принцип работы ####
 
