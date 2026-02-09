@@ -699,7 +699,7 @@ DECLSPEC void sqr_mod (PRIVATE_AS u32 *r, PRIVATE_AS const u32 *a)
 
   c = add (r, t, tmp);
 
-  // multiply tmp[8]...tmp[9] by omega:
+  // multiply tmp[8]...tmp[15] by omega:
 
   u32 c2 = 0;
 
@@ -1162,7 +1162,7 @@ DECLSPEC void point_double (PRIVATE_AS u32 *x, PRIVATE_AS u32 *y, PRIVATE_AS u32
 
   // here the z^2 and z^4 is not needed for a = 0
 
-  mul_mod (t3, t2, t3); // t3 = x * z (note: t3 = y * z in original comment, but code is correct)
+  mul_mod (t3, t2, t3); // t3 = y * z
 
   add_mod (t2, t4, t4); // t2 = 2 * t4 = 2 * x^2
   add_mod (t4, t4, t2); // t4 = 3 * t4 = 3 * x^2
