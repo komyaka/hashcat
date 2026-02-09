@@ -113,7 +113,7 @@ DECLSPEC void keccak_transform_S (PRIVATE_AS u64 *st)
   }
 }
 
-// Keccak-256: rate=136, padding byte=0x01
+// SHA3-256: rate=136, padding byte=0x06
 DECLSPEC void sha3_256_hash (PRIVATE_AS const u32 *pw, const u32 pw_len, PRIVATE_AS u32 *out)
 {
   u64 st[25] = { 0 };

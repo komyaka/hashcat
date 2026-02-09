@@ -53,4 +53,186 @@ If your patch fixes a bug, please be sure there is an [issue](https://github.com
 
 In order to maintain the quality and integrity of the **hashcat** source tree, all pull requests must be reviewed and signed off by at least two [board members](https://github.com/orgs/hashcat/people) before being merged. The [project lead](https://github.com/jsteube) has the ultimate authority in deciding whether to accept or reject a pull request. Do not be discouraged if your pull request is rejected!
 
+---
+
+### Модули Brainwallet (35900–35904) ###
+
+#### Описание модулей ####
+
+| Режим | Описание | Хеш парольной фразы | Получение адреса |
+|-------|----------|---------------------|------------------|
+| 35900 | Bitcoin Brainwallet (SHA-256) | SHA-256 | RIPEMD160(SHA256(compressed_pubkey)) → Base58Check |
+| 35901 | Bitcoin Brainwallet (SHA3-256) | SHA3-256 | RIPEMD160(SHA256(compressed_pubkey)) → Base58Check |
+| 35902 | Ethereum Brainwallet (Keccak-256) | Keccak-256 | Keccak256(uncompressed_pubkey)[12:] → 0x hex |
+| 35903 | Ethereum Brainwallet (SHA-256) | SHA-256 | Keccak256(uncompressed_pubkey)[12:] → 0x hex |
+| 35904 | Ethereum Brainwallet (SHA3-256) | SHA3-256 | Keccak256(uncompressed_pubkey)[12:] → 0x hex |
+
+#### Принцип работы ####
+
+Все модули реализуют атаку на «мозговые кошельки» (brainwallet):
+
+1. Парольная фраза хешируется выбранным алгоритмом (SHA-256, SHA3-256 или Keccak-256) → получается 256-битный приватный ключ.
+2. По приватному ключу вычисляется точка на эллиптической кривой secp256k1 (публичный ключ).
+3. Из публичного ключа выводится адрес кошелька:
+   - **Bitcoin** (35900, 35901): Сжатый публичный ключ (33 байта) → SHA-256 → RIPEMD-160 → Base58Check с версией 0x00.
+   - **Ethereum** (35902, 35903, 35904): Несжатый публичный ключ (64 байта, без префикса 0x04) → Keccak-256 → последние 20 байт → адрес в формате `0x...`.
+4. Полученный адрес сравнивается с целевым адресом (или списком адресов) из хеш-файла.
+
+#### Формат базы адресов (хеш-файл) ####
+
+База адресов — это обычный текстовый файл, в котором **каждый адрес записан на отдельной строке**. Этот файл указывается в параметре hashcat как хеш-файл.
+
+**Для Bitcoin (режимы 35900, 35901):**
+
+Каждая строка содержит один Bitcoin-адрес в формате Base58Check (обычный P2PKH-адрес, начинается с `1`):
+
+```
+1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa
+1CkwUnESKuVFyn3PVm1fyyMtXx6CT2STg7
+1HsXwzdgD2ynmEbgMgLikdBDP7wWrFchTL
+```
+
+- Длина адреса: 26–34 символа.
+- Допустимые символы: алфавит Base58 (`123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz`).
+- Адрес должен начинаться с `1` (P2PKH, mainnet).
+- Встроенная проверка Base58Check контрольной суммы.
+
+**Для Ethereum (режимы 35902, 35903, 35904):**
+
+Каждая строка содержит один Ethereum-адрес в шестнадцатеричном формате с префиксом `0x`:
+
+```
+0x9c7002ea607c998e062793c420116b66f92421ac
+0xacc6378af93c8cdb42d429625cd531038531a1db
+0xb238859ca7d4d8fa1af573c6e522b4c52fd58f0a
+```
+
+- Длина адреса: 42 символа (включая префикс `0x`).
+- После `0x` следуют ровно 40 шестнадцатеричных символов (строчные `a-f` и цифры `0-9`).
+- Префикс `0x` обязателен.
+
+**Размер базы:** Hashcat поддерживает загрузку больших списков адресов (например, 30 000 000 адресов). Файл должен умещаться в оперативную память. Рекомендуется использовать SSD для быстрой загрузки.
+
+**Расположение файла:** Файл с адресами может находиться в любом месте файловой системы. Путь к нему указывается в командной строке hashcat.
+
+#### Примеры использования ####
+
+##### Режим 35900 — Bitcoin Brainwallet (SHA-256) #####
+
+Парольная фраза хешируется через SHA-256 для получения приватного ключа Bitcoin.
+
+**Пример 1: Атака по словарю**
+```bash
+./hashcat -m 35900 -a 0 bitcoin_addresses.txt wordlist.txt
+```
+Здесь `bitcoin_addresses.txt` — файл со списком Bitcoin-адресов (по одному на строку), `wordlist.txt` — словарь с парольными фразами.
+
+**Пример 2: Атака по маске (брутфорс)**
+```bash
+./hashcat -m 35900 -a 3 bitcoin_addresses.txt ?a?a?a?a?a?a
+```
+Перебор всех комбинаций из 6 печатных ASCII-символов.
+
+**Пример 3: Комбинаторная атака**
+```bash
+./hashcat -m 35900 -a 1 bitcoin_addresses.txt words_left.txt words_right.txt
+```
+Каждое слово из `words_left.txt` комбинируется с каждым словом из `words_right.txt`.
+
+##### Режим 35901 — Bitcoin Brainwallet (SHA3-256) #####
+
+Парольная фраза хешируется через SHA3-256 для получения приватного ключа Bitcoin.
+
+**Пример 1: Атака по словарю**
+```bash
+./hashcat -m 35901 -a 0 bitcoin_addresses.txt wordlist.txt
+```
+
+**Пример 2: Атака по словарю с правилами**
+```bash
+./hashcat -m 35901 -a 0 bitcoin_addresses.txt wordlist.txt -r rules/best64.rule
+```
+Применение правил трансформации к каждому слову из словаря.
+
+**Пример 3: Атака по маске с пользовательскими наборами символов**
+```bash
+./hashcat -m 35901 -a 3 bitcoin_addresses.txt -1 ?l?d ?1?1?1?1?1?1?1?1
+```
+Перебор 8-символьных строк из строчных букв и цифр.
+
+##### Режим 35902 — Ethereum Brainwallet (Keccak-256) #####
+
+Парольная фраза хешируется через Keccak-256 для получения приватного ключа Ethereum.
+
+**Пример 1: Атака по словарю**
+```bash
+./hashcat -m 35902 -a 0 ethereum_addresses.txt wordlist.txt
+```
+Здесь `ethereum_addresses.txt` — файл с Ethereum-адресами (формат `0x...`, по одному на строку).
+
+**Пример 2: Атака по маске**
+```bash
+./hashcat -m 35902 -a 3 ethereum_addresses.txt ?a?a?a?a?a?a?a
+```
+Перебор всех 7-символьных парольных фраз.
+
+**Пример 3: Атака по словарю с правилами**
+```bash
+./hashcat -m 35902 -a 0 ethereum_addresses.txt wordlist.txt -r rules/dive.rule
+```
+
+##### Режим 35903 — Ethereum Brainwallet (SHA-256) #####
+
+Парольная фраза хешируется через SHA-256 для получения приватного ключа Ethereum.
+
+**Пример 1: Атака по словарю**
+```bash
+./hashcat -m 35903 -a 0 ethereum_addresses.txt wordlist.txt
+```
+
+**Пример 2: Комбинаторная атака**
+```bash
+./hashcat -m 35903 -a 1 ethereum_addresses.txt words_part1.txt words_part2.txt
+```
+
+**Пример 3: Атака по маске с инкрементом длины**
+```bash
+./hashcat -m 35903 -a 3 ethereum_addresses.txt ?a?a?a?a?a?a?a?a --increment --increment-min 4
+```
+Перебор парольных фраз длиной от 4 до 8 символов.
+
+##### Режим 35904 — Ethereum Brainwallet (SHA3-256) #####
+
+Парольная фраза хешируется через SHA3-256 для получения приватного ключа Ethereum.
+
+**Пример 1: Атака по словарю**
+```bash
+./hashcat -m 35904 -a 0 ethereum_addresses.txt wordlist.txt
+```
+
+**Пример 2: Атака по маске**
+```bash
+./hashcat -m 35904 -a 3 ethereum_addresses.txt ?l?l?l?l?l?l
+```
+Перебор 6-символьных строчных слов.
+
+**Пример 3: Атака по словарю с правилами**
+```bash
+./hashcat -m 35904 -a 0 ethereum_addresses.txt wordlist.txt -r rules/rockyou-30000.rule
+```
+
+#### Самопроверочные хеши (self-test) ####
+
+Для парольной фразы `hashcat`:
+
+| Режим | Адрес |
+|-------|-------|
+| 35900 | `1CkwUnESKuVFyn3PVm1fyyMtXx6CT2STg7` |
+| 35901 | `1HsXwzdgD2ynmEbgMgLikdBDP7wWrFchTL` |
+| 35902 | `0x9c7002ea607c998e062793c420116b66f92421ac` |
+| 35903 | `0xacc6378af93c8cdb42d429625cd531038531a1db` |
+| 35904 | `0xb238859ca7d4d8fa1af573c6e522b4c52fd58f0a` |
+
+---
+
 ### Happy Cracking!
