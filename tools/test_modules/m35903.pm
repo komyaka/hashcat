@@ -52,6 +52,12 @@ sub module_verify_hash
   return unless defined $hash;
   return unless defined $word;
 
+  # Normalize hash: ensure it has 0x prefix
+  $hash = lc ($hash);
+  $hash =~ s/^0x//;
+  return unless length ($hash) == 40;
+  $hash = "0x" . $hash;
+
   $word = pack_if_HEX_notation ($word);
 
   my $new_hash = module_generate_hash ($word);

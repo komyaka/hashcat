@@ -68,24 +68,21 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
 
   token.token_cnt = 1;
 
-  token.len_min[0] = 42;
-  token.len_max[0] = 42;
-  token.attr[0]    = TOKEN_ATTR_VERIFY_LENGTH
-                   | TOKEN_ATTR_VERIFY_HEX;
-
   // accept 0x prefix
 
   const u8 *input_buf = (const u8 *) line_buf;
   int input_len = line_len;
 
-  if (line_len == 42 && line_buf[0] == '0' && line_buf[1] == 'x')
+  if (line_len == 42 && line_buf[0] == '0' && (line_buf[1] == 'x' || line_buf[1] == 'X'))
   {
     input_buf += 2;
     input_len -= 2;
-
-    token.len_min[0] = 40;
-    token.len_max[0] = 40;
   }
+
+  token.len_min[0] = 40;
+  token.len_max[0] = 40;
+  token.attr[0]    = TOKEN_ATTR_VERIFY_LENGTH
+                   | TOKEN_ATTR_VERIFY_HEX;
 
   const int rc_tokenizer = input_tokenizer (input_buf, input_len, &token);
 
