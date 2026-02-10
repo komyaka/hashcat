@@ -46,6 +46,12 @@ const char *module_st_pass           (MAYBE_UNUSED const hashconfig_t *hashconfi
 
 #define PUBKEY_MAXLEN 64 // our max is actually always 25 (21 + 4)
 
+// Bech32 address length constants
+#define BECH32_PREFIX_LEN    3  // "bc1"
+#define BECH32_P2WPKH_LEN   42  // P2WPKH address length (bc1q... with 20-byte witness program)
+#define BECH32_P2WSH_LEN    62  // P2WSH address length (bc1q... with 32-byte witness program)
+#define BECH32_P2WPKH_DATA_LEN  39  // Data part length for P2WPKH (excluding "bc1" prefix)
+
 // Bech32 support functions (from module_28503.c)
 static u32 polymod_checksum (const u8 *data, const u32 data_len)
 {
@@ -106,10 +112,10 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
   //       are not supported for brainwallet mode as they require scripts
 
   // Check for Bech32 addresses - must be exactly 42 chars for P2WPKH
-  if ((line_len >= 3) && (line_buf[0] == 'b') && (line_buf[1] == 'c') && (line_buf[2] == '1'))
+  if ((line_len >= BECH32_PREFIX_LEN) && (line_buf[0] == 'b') && (line_buf[1] == 'c') && (line_buf[2] == '1'))
   {
     // Reject non-P2WPKH Bech32 addresses (P2WSH, Taproot, etc.)
-    if (line_len != 42)
+    if (line_len != BECH32_P2WPKH_LEN)
     {
       // P2WSH/Taproot addresses cannot be derived from brainwallet passphrase
       return (PARSER_HASH_VALUE);
@@ -125,11 +131,11 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
     token.signatures_cnt    = 1;
     token.signatures_buf[0] = SIGNATURE_BITCOIN_BECH32;
 
-    token.len[0]  =  3;
+    token.len[0]  =  BECH32_PREFIX_LEN;
     token.attr[0] = TOKEN_ATTR_FIXED_LENGTH
                   | TOKEN_ATTR_VERIFY_SIGNATURE;
 
-    token.len[1]  = 39;
+    token.len[1]  = BECH32_P2WPKH_DATA_LEN;
     token.attr[1] = TOKEN_ATTR_FIXED_LENGTH
                   | TOKEN_ATTR_VERIFY_BECH32;
 
@@ -140,13 +146,13 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
     // Bech32 decode
     u8 t[64] = { 0 };
 
-    for (u32 i = 3; i < 42; i++)
+    for (u32 i = BECH32_PREFIX_LEN; i < BECH32_P2WPKH_LEN; i++)
     {
       for (u32 j = 0; j < 32; j++)
       {
         if (BECH32_BASE32_ALPHABET[j] == line_buf[i])
         {
-          t[i - 3] = j;
+          t[i - BECH32_PREFIX_LEN] = j;
           break;
         }
       }
@@ -170,7 +176,7 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
     data[3] = 2;
     data[4] = 3;
 
-    for (u32 i = 0; i < 42 - 3 - 6; i++)
+    for (u32 i = 0; i < BECH32_P2WPKH_LEN - BECH32_PREFIX_LEN - 6; i++)
     {
       data[i + 5] = t[i];
     }
