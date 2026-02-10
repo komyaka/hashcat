@@ -99,13 +99,23 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
   memset (salt, 0, sizeof (salt_t));
 
   // Detect address type
-  // 1. Bech32 (bc1q...) - 42 chars starting with "bc1"
+  // 1. Bech32 P2WPKH (bc1q...) - 42 chars with "bc1" prefix
   // 2. P2PKH (1...) - Base58, 26-34 chars starting with "1"
   // 3. P2SH (3...) - Base58, typically 34 chars starting with "3"
+  // Note: P2WSH (62-char bc1q...) and Taproot (62-char bc1p...) addresses
+  //       are not supported for brainwallet mode as they require scripts
 
-  if ((line_len == 42) && (line_buf[0] == 'b') && (line_buf[1] == 'c') && (line_buf[2] == '1'))
+  // Check for Bech32 addresses - must be exactly 42 chars for P2WPKH
+  if ((line_len >= 3) && (line_buf[0] == 'b') && (line_buf[1] == 'c') && (line_buf[2] == '1'))
   {
-    // Bech32 address type
+    // Reject non-P2WPKH Bech32 addresses (P2WSH, Taproot, etc.)
+    if (line_len != 42)
+    {
+      // P2WSH/Taproot addresses cannot be derived from brainwallet passphrase
+      return (PARSER_HASH_VALUE);
+    }
+
+    // Bech32 address type (P2WPKH)
     hc_token_t token;
 
     memset (&token, 0, sizeof (hc_token_t));
