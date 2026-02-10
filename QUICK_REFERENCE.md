@@ -4,7 +4,7 @@
 
 **One-Line Summary:** Fixed critical performance bug in Bitcoin Brainwallet mode (m35900) by switching to optimized ECC library — 5-10x speedup expected.
 
-## Files Modified (5 code + 1 doc)
+## Files Modified (5 code + 2 docs)
 
 ```
 OpenCL/m35900_a0-pure.cl:20          -inc_ecc_secp256k1_fast.cl +inc_ecc_secp256k1.cl
