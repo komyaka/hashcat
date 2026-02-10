@@ -7,7 +7,7 @@
  * Attack concept from brainflayer: passphrase -> Keccak256(passphrase) -> private key
  * -> secp256k1 public key -> Keccak256(pubkey[1:64]) -> last 20 bytes -> Ethereum address
  *
- * Input hash format: 40 hex chars representing the 20-byte Ethereum address (without 0x prefix)
+ * Input hash format: 40 hex chars representing the 20-byte Ethereum address (with or without 0x prefix)
  * Example: passphrase "hashcat" -> Keccak256 -> privkey -> uncompressed pubkey -> Keccak256 -> addr
  */
 
