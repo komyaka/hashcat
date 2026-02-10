@@ -2,6 +2,19 @@
  * Author......: See docs/credits.txt
  * License.....: MIT
  *
+ * ⚠️ DEPRECATION WARNING ⚠️
+ * ==========================
+ * This "fast" implementation is actually SLOWER (5-10x) than inc_ecc_secp256k1.cl due to:
+ * 1. Naive sqr_mod() that calls mul_mod() instead of exploiting symmetry (44% slower)
+ * 2. Binary exponentiation inv_mod() with heavy warp divergence (9x more multiplications)
+ * 3. Branched reduction causing GPU warp/wavefront divergence
+ *
+ * RECOMMENDATION: Use inc_ecc_secp256k1.cl (the main optimized version) instead.
+ * This file is kept for backward compatibility only and may be removed in future versions.
+ *
+ * For details, see comprehensive code review analysis from 2024.
+ * ==========================
+ *
  * Furthermore, since elliptic curve operations are highly researched and optimized,
  * we've consulted a lot of online resources to implement this, including several papers and
  * example code.
