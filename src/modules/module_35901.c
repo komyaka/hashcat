@@ -103,8 +103,15 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
   // 2. P2PKH (1...) - Base58, 26-34 chars starting with "1"
   // 3. P2SH (3...) - Base58, typically 34 chars starting with "3"
 
-  if ((line_len == 42) && (line_buf[0] == 'b') && (line_buf[1] == 'c') && (line_buf[2] == '1'))
+  if ((line_len >= 4) && (line_buf[0] == 'b') && (line_buf[1] == 'c') && (line_buf[2] == '1'))
   {
+    // Only accept P2WPKH (42 chars, witness version 0, 20-byte program)
+    // Reject P2WSH (62 chars) and other non-standard lengths
+    if (line_len != 42)
+    {
+      return (PARSER_HASH_LENGTH);  // Graceful rejection of P2WSH/P2TR etc.
+    }
+
     // Bech32 address type
     hc_token_t token;
 
