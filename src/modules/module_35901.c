@@ -95,9 +95,6 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
 {
   u8 *digest = (u8 *) digest_buf;
 
-  // Initialize salt buffer
-  memset (salt, 0, sizeof (salt_t));
-
   // Detect address type
   // 1. Bech32 (bc1q...) - 42 chars starting with "bc1"
   // 2. P2PKH (1...) - Base58, 26-34 chars starting with "1"
