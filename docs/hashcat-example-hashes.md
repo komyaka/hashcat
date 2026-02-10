@@ -596,9 +596,6 @@ All manual changes will be overwritten!
 | [`72000`](/src/modules/module_72000.c) | `Generic Hash [Bridged: Python Interpreter free-threading]` | <sup>  [p](/OpenCL/m72000-pure.cl) </sup> | [:white_check_mark:](/tools/test_modules/m72000.pm) | `33522b0fd9812aa68586f66dba7c17a8ce64344137f9c7d8b11f32a6921c22de*9348746780603343` |
 | [`73000`](/src/modules/module_73000.c) | `Generic Hash [Bridged: Python Interpreter with GIL]` | <sup>  [p](/OpenCL/m73000-pure.cl) </sup> | [:white_check_mark:](/tools/test_modules/m73000.pm) | `33522b0fd9812aa68586f66dba7c17a8ce64344137f9c7d8b11f32a6921c22de*9348746780603343` |
 | [`74000`](/src/modules/module_74000.c) | `Generic Hash [Bridged: Rust]` | <sup>  [p](/OpenCL/m72000-pure.cl) </sup> | [:white_check_mark:](/tools/test_modules/m74000.pm) | `33522b0fd9812aa68586f66dba7c17a8ce64344137f9c7d8b11f32a6921c22de*9348746780603343` |
-| [`99997`](/src/modules/module_99997.c) | `Bitcoin/Ethereum Brainwallet (SHA256, secp256k1)` | <sup>  </sup> | :x: | `127e6fbfe24a750e72930c220a8e138275656b8e5d8f48a98c3c92df2caba935` |
-| [`99998`](/src/modules/module_99998.c) | `Ethereum Brainwallet (Keccak-256, secp256k1)` | <sup>  </sup> | :x: | `0000000000000000000000000000000000000000` |
-| [`99999`](/src/modules/module_99999.c) | `Bitcoin Brainwallet (SHA256, secp256k1, P2PKH)` | <sup>  </sup> | :x: | `b4300645c705a59be76c0507e1ef39e2ae42f58a` |
 
 [^1]: Example password: `HASHCAT`
 [^2]: Module usage notice: `rounds=[# of iterations] is optional here, after signature, e.g. $5$rounds=5000`
