@@ -2143,7 +2143,7 @@ int hashes_init_stage2 (hashcat_ctx_t *hashcat_ctx)
       hashes_buf[hashes_pos].esalt = esalts_buf_new_ptr;
     }
 
-    if ((user_options->username == true) || (hashconfig->opts_type & OPTS_TYPE_HASH_COPY) || (hashconfig->opts_type & OPTS_TYPE_HASH_SPLIT) | (user_options->hash_copy == true))
+    if ((user_options->username == true) || (hashconfig->opts_type & OPTS_TYPE_HASH_COPY) || (hashconfig->opts_type & OPTS_TYPE_HASH_SPLIT) || (user_options->hash_copy == true))
     {
       hash_info[hashes_pos] = hashes_buf[hashes_pos].hash_info;
     }
