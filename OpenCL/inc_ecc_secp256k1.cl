@@ -1050,14 +1050,16 @@ DECLSPEC void inv_mod (PRIVATE_AS u32 *a)
   for (u32 i = 0; i < 23; i++) sqr_mod(t, t);
   mul_mod(t, t, x22);
 
-  // t = t^(2^6) * x2
-  for (u32 i = 0; i < 6; i++) sqr_mod(t, t);
+  // t = t^(2^5) * x1
+  for (u32 i = 0; i < 5; i++) sqr_mod(t, t);
+  mul_mod(t, t, x1);
+
+  // t = t^(2^3) * x2
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
   mul_mod(t, t, x2);
 
-  // t = t^(2^2)
+  // Result: t = t^(2^2) * x1
   sqr_mod(t, t); sqr_mod(t, t);
-
-  // Result: t = t * x1
   mul_mod(a, t, x1);
 }
 
