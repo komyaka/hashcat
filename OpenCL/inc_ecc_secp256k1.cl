@@ -1396,30 +1396,10 @@ DECLSPEC void point_add (PRIVATE_AS u32 *x1, PRIVATE_AS u32 *y1, PRIVATE_AS u32 
   t3[6] = z1[6];
   t3[7] = z1[7];
 
-  // x2/y2:
+  // x2/y2 are const pointers, use them directly without copying
 
   u32 t4[8];
-
-  t4[0] = x2[0];
-  t4[1] = x2[1];
-  t4[2] = x2[2];
-  t4[3] = x2[3];
-  t4[4] = x2[4];
-  t4[5] = x2[5];
-  t4[6] = x2[6];
-  t4[7] = x2[7];
-
   u32 t5[8];
-
-  t5[0] = y2[0];
-  t5[1] = y2[1];
-  t5[2] = y2[2];
-  t5[3] = y2[3];
-  t5[4] = y2[4];
-  t5[5] = y2[5];
-  t5[6] = y2[6];
-  t5[7] = y2[7];
-
   u32 t6[8];
   u32 t7[8];
   u32 t8[8];
@@ -1428,8 +1408,8 @@ DECLSPEC void point_add (PRIVATE_AS u32 *x1, PRIVATE_AS u32 *y1, PRIVATE_AS u32 
   sqr_mod (t6, t3); // t6 = t3^2
 
   mul_mod (t7, t6, t3); // t7 = t6*t3
-  mul_mod (t6, t6, t4); // t6 = t6*t4
-  mul_mod (t7, t7, t5); // t7 = t7*t5
+  mul_mod (t6, t6, x2); // t6 = t6*x2 (use x2 directly)
+  mul_mod (t7, t7, y2); // t7 = t7*y2 (use y2 directly)
 
   sub_mod (t6, t6, t1); // t6 = t6-t1
   sub_mod (t7, t7, t2); // t7 = t7-t2
