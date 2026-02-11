@@ -85,8 +85,6 @@ KERNEL_FQ KERNEL_FA void m35903_mxx (KERN_ATTR_VECTOR ())
     w[idx] = pws[gid].i[idx];
   }
 
-  secp256k1_t preG;
-  set_precomputed_basepoint_g (&preG);
 
   u32x w0l = w[0];
 
@@ -109,7 +107,7 @@ KERNEL_FQ KERNEL_FA void m35903_mxx (KERN_ATTR_VECTOR ())
     prv_key[8]=0;
 
     u32 x[8], y[8];
-    point_mul_xy (x, y, prv_key, &preG);
+    point_mul_xy (x, y, prv_key, &preG_const);
 
     u32 pub_key[16];
     pub_key[0]=hc_swap32_S(x[7]); pub_key[1]=hc_swap32_S(x[6]); pub_key[2]=hc_swap32_S(x[5]); pub_key[3]=hc_swap32_S(x[4]);
@@ -148,8 +146,6 @@ KERNEL_FQ KERNEL_FA void m35903_sxx (KERN_ATTR_VECTOR ())
     w[idx] = pws[gid].i[idx];
   }
 
-  secp256k1_t preG;
-  set_precomputed_basepoint_g (&preG);
 
   u32x w0l = w[0];
 
@@ -172,7 +168,7 @@ KERNEL_FQ KERNEL_FA void m35903_sxx (KERN_ATTR_VECTOR ())
     prv_key[8]=0;
 
     u32 x[8], y[8];
-    point_mul_xy (x, y, prv_key, &preG);
+    point_mul_xy (x, y, prv_key, &preG_const);
 
     u32 pub_key[16];
     pub_key[0]=hc_swap32_S(x[7]); pub_key[1]=hc_swap32_S(x[6]); pub_key[2]=hc_swap32_S(x[5]); pub_key[3]=hc_swap32_S(x[4]);

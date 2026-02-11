@@ -207,9 +207,6 @@ KERNEL_FQ KERNEL_FA void m35904_mxx (KERN_ATTR_BASIC ())
     w[idx] = pws[gid].i[idx];
   }
 
-  secp256k1_t preG;
-
-  set_precomputed_basepoint_g (&preG);
 
   for (u32 il_pos = 0; il_pos < IL_CNT; il_pos++)
   {
@@ -250,7 +247,7 @@ KERNEL_FQ KERNEL_FA void m35904_mxx (KERN_ATTR_BASIC ())
     u32 x[8];
     u32 y[8];
 
-    point_mul_xy (x, y, prv_key, &preG);
+    point_mul_xy (x, y, prv_key, &preG_const);
 
     u32 pub_key[16];
 
@@ -307,9 +304,6 @@ KERNEL_FQ KERNEL_FA void m35904_sxx (KERN_ATTR_BASIC ())
     w[idx] = pws[gid].i[idx];
   }
 
-  secp256k1_t preG;
-
-  set_precomputed_basepoint_g (&preG);
 
   for (u32 il_pos = 0; il_pos < IL_CNT; il_pos++)
   {
@@ -350,7 +344,7 @@ KERNEL_FQ KERNEL_FA void m35904_sxx (KERN_ATTR_BASIC ())
     u32 x[8];
     u32 y[8];
 
-    point_mul_xy (x, y, prv_key, &preG);
+    point_mul_xy (x, y, prv_key, &preG_const);
 
     u32 pub_key[16];
 
