@@ -596,40 +596,23 @@ DECLSPEC void mod_512 (PRIVATE_AS u32 *n)
     if (temp[14] > a[14]) temp[13]--;
     if (temp[15] > a[15]) temp[14]--;
 
-    // Copy result back to both r and a
-    r[ 0] = temp[ 0];
-    r[ 1] = temp[ 1];
-    r[ 2] = temp[ 2];
-    r[ 3] = temp[ 3];
-    r[ 4] = temp[ 4];
-    r[ 5] = temp[ 5];
-    r[ 6] = temp[ 6];
-    r[ 7] = temp[ 7];
-    r[ 8] = temp[ 8];
-    r[ 9] = temp[ 9];
-    r[10] = temp[10];
-    r[11] = temp[11];
-    r[12] = temp[12];
-    r[13] = temp[13];
-    r[14] = temp[14];
-    r[15] = temp[15];
-
-    a[ 0] = r[ 0];
-    a[ 1] = r[ 1];
-    a[ 2] = r[ 2];
-    a[ 3] = r[ 3];
-    a[ 4] = r[ 4];
-    a[ 5] = r[ 5];
-    a[ 6] = r[ 6];
-    a[ 7] = r[ 7];
-    a[ 8] = r[ 8];
-    a[ 9] = r[ 9];
-    a[10] = r[10];
-    a[11] = r[11];
-    a[12] = r[12];
-    a[13] = r[13];
-    a[14] = r[14];
-    a[15] = r[15];
+    // Copy result directly to both r and a (no intermediate copy needed)
+    a[ 0] = r[ 0] = temp[ 0];
+    a[ 1] = r[ 1] = temp[ 1];
+    a[ 2] = r[ 2] = temp[ 2];
+    a[ 3] = r[ 3] = temp[ 3];
+    a[ 4] = r[ 4] = temp[ 4];
+    a[ 5] = r[ 5] = temp[ 5];
+    a[ 6] = r[ 6] = temp[ 6];
+    a[ 7] = r[ 7] = temp[ 7];
+    a[ 8] = r[ 8] = temp[ 8];
+    a[ 9] = r[ 9] = temp[ 9];
+    a[10] = r[10] = temp[10];
+    a[11] = r[11] = temp[11];
+    a[12] = r[12] = temp[12];
+    a[13] = r[13] = temp[13];
+    a[14] = r[14] = temp[14];
+    a[15] = r[15] = temp[15];
   }
 
   n[ 0] = a[ 0];
