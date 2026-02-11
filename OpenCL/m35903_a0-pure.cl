@@ -5,7 +5,7 @@
 
 //#define NEW_SIMD_CODE
 
-#define SECP256K1_TMPS_TYPE CONSTANT_AS
+#define SECP256K1_TMPS_TYPE PRIVATE_AS
 
 #ifdef KERNEL_STATIC
 #include M2S(INCLUDE_PATH/inc_vendor.h)
@@ -149,6 +149,10 @@ KERNEL_FQ KERNEL_FA void m35903_mxx (KERN_ATTR_RULES ())
 
   COPY_PW (pws[gid]);
 
+  secp256k1_t preG;
+
+  set_precomputed_basepoint_g (&preG);
+
   for (u32 il_pos = 0; il_pos < IL_CNT; il_pos++)
   {
     pw_t p = PASTE_PW;
@@ -177,7 +181,7 @@ KERNEL_FQ KERNEL_FA void m35903_mxx (KERN_ATTR_RULES ())
     u32 x[8];
     u32 y[8];
 
-    point_mul_xy (x, y, prv_key, &preG_const);
+    point_mul_xy (x, y, prv_key, &preG);
 
     // Ethereum: uncompressed public key (x || y) in big-endian
     u32 pub_key[16];
@@ -227,6 +231,10 @@ KERNEL_FQ KERNEL_FA void m35903_sxx (KERN_ATTR_RULES ())
   };
 
 
+  secp256k1_t preG;
+
+  set_precomputed_basepoint_g (&preG);
+
   COPY_PW (pws[gid]);
 
   for (u32 il_pos = 0; il_pos < IL_CNT; il_pos++)
@@ -256,7 +264,7 @@ KERNEL_FQ KERNEL_FA void m35903_sxx (KERN_ATTR_RULES ())
     u32 x[8];
     u32 y[8];
 
-    point_mul_xy (x, y, prv_key, &preG_const);
+    point_mul_xy (x, y, prv_key, &preG);
 
     u32 pub_key[16];
 
