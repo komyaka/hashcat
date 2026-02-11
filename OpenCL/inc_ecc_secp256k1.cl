@@ -1011,31 +1011,79 @@ DECLSPEC void inv_mod (PRIVATE_AS u32 *a)
   // x22 = x11^(2^11) * x11
   t[0] = x11[0]; t[1] = x11[1]; t[2] = x11[2]; t[3] = x11[3];
   t[4] = x11[4]; t[5] = x11[5]; t[6] = x11[6]; t[7] = x11[7];
-  for (u32 i = 0; i < 11; i++) sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
   mul_mod(x22, t, x11);
 
   // x44 = x22^(2^22) * x22
   t[0] = x22[0]; t[1] = x22[1]; t[2] = x22[2]; t[3] = x22[3];
   t[4] = x22[4]; t[5] = x22[5]; t[6] = x22[6]; t[7] = x22[7];
-  for (u32 i = 0; i < 22; i++) sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t);
   mul_mod(x44, t, x22);
 
   // x88 = x44^(2^44) * x44
   t[0] = x44[0]; t[1] = x44[1]; t[2] = x44[2]; t[3] = x44[3];
   t[4] = x44[4]; t[5] = x44[5]; t[6] = x44[6]; t[7] = x44[7];
-  for (u32 i = 0; i < 44; i++) sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
   mul_mod(x88, t, x44);
 
   // x176 = x88^(2^88) * x88
   t[0] = x88[0]; t[1] = x88[1]; t[2] = x88[2]; t[3] = x88[3];
   t[4] = x88[4]; t[5] = x88[5]; t[6] = x88[6]; t[7] = x88[7];
-  for (u32 i = 0; i < 88; i++) sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
   mul_mod(x176, t, x88);
 
   // x220 = x176^(2^44) * x44
   t[0] = x176[0]; t[1] = x176[1]; t[2] = x176[2]; t[3] = x176[3];
   t[4] = x176[4]; t[5] = x176[5]; t[6] = x176[6]; t[7] = x176[7];
-  for (u32 i = 0; i < 44; i++) sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
   mul_mod(x220, t, x44);
 
   // x223 = x220^(2^3) * x3
@@ -1047,11 +1095,17 @@ DECLSPEC void inv_mod (PRIVATE_AS u32 *a)
   // Final assembly: t = x223^(2^23) * x22
   t[0] = x223[0]; t[1] = x223[1]; t[2] = x223[2]; t[3] = x223[3];
   t[4] = x223[4]; t[5] = x223[5]; t[6] = x223[6]; t[7] = x223[7];
-  for (u32 i = 0; i < 23; i++) sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
   mul_mod(t, t, x22);
 
   // t = t^(2^5) * x1
-  for (u32 i = 0; i < 5; i++) sqr_mod(t, t);
+  sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t); sqr_mod(t, t);
+  sqr_mod(t, t);
   mul_mod(t, t, x1);
 
   // t = t^(2^3) * x2
