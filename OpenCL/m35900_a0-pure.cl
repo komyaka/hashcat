@@ -5,7 +5,7 @@
 
 //#define NEW_SIMD_CODE
 
-#define SECP256K1_TMPS_TYPE PRIVATE_AS
+#define SECP256K1_TMPS_TYPE CONSTANT_AS
 
 #ifdef KERNEL_STATIC
 #include M2S(INCLUDE_PATH/inc_vendor.h)
