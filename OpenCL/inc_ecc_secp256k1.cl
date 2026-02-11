@@ -526,40 +526,61 @@ DECLSPEC void mod_512 (PRIVATE_AS u32 *n)
     if ((r[ 0] | r[ 1] | r[ 2] | r[ 3] | r[ 4] | r[ 5] | r[ 6] | r[ 7] |
          r[ 8] | r[ 9] | r[10] | r[11] | r[12] | r[13] | r[14] | r[15]) == 0) break;
 
-    r[ 0] = a[ 0] - r[ 0];
-    r[ 1] = a[ 1] - r[ 1];
-    r[ 2] = a[ 2] - r[ 2];
-    r[ 3] = a[ 3] - r[ 3];
-    r[ 4] = a[ 4] - r[ 4];
-    r[ 5] = a[ 5] - r[ 5];
-    r[ 6] = a[ 6] - r[ 6];
-    r[ 7] = a[ 7] - r[ 7];
-    r[ 8] = a[ 8] - r[ 8];
-    r[ 9] = a[ 9] - r[ 9];
-    r[10] = a[10] - r[10];
-    r[11] = a[11] - r[11];
-    r[12] = a[12] - r[12];
-    r[13] = a[13] - r[13];
-    r[14] = a[14] - r[14];
-    r[15] = a[15] - r[15];
+    // Use temporary array to avoid read-after-write hazard in borrow propagation
+    u32 temp[16];
 
-    // take care of the "borrow" (we can't do it the other way around 15...1 because r[x] is changed!)
+    temp[ 0] = a[ 0] - r[ 0];
+    temp[ 1] = a[ 1] - r[ 1];
+    temp[ 2] = a[ 2] - r[ 2];
+    temp[ 3] = a[ 3] - r[ 3];
+    temp[ 4] = a[ 4] - r[ 4];
+    temp[ 5] = a[ 5] - r[ 5];
+    temp[ 6] = a[ 6] - r[ 6];
+    temp[ 7] = a[ 7] - r[ 7];
+    temp[ 8] = a[ 8] - r[ 8];
+    temp[ 9] = a[ 9] - r[ 9];
+    temp[10] = a[10] - r[10];
+    temp[11] = a[11] - r[11];
+    temp[12] = a[12] - r[12];
+    temp[13] = a[13] - r[13];
+    temp[14] = a[14] - r[14];
+    temp[15] = a[15] - r[15];
 
-    if (r[ 1] > a[ 1]) r[ 0]--;
-    if (r[ 2] > a[ 2]) r[ 1]--;
-    if (r[ 3] > a[ 3]) r[ 2]--;
-    if (r[ 4] > a[ 4]) r[ 3]--;
-    if (r[ 5] > a[ 5]) r[ 4]--;
-    if (r[ 6] > a[ 6]) r[ 5]--;
-    if (r[ 7] > a[ 7]) r[ 6]--;
-    if (r[ 8] > a[ 8]) r[ 7]--;
-    if (r[ 9] > a[ 9]) r[ 8]--;
-    if (r[10] > a[10]) r[ 9]--;
-    if (r[11] > a[11]) r[10]--;
-    if (r[12] > a[12]) r[11]--;
-    if (r[13] > a[13]) r[12]--;
-    if (r[14] > a[14]) r[13]--;
-    if (r[15] > a[15]) r[14]--;
+    // Borrow propagation: compare temp with original a[] values
+
+    if (temp[ 1] > a[ 1]) temp[ 0]--;
+    if (temp[ 2] > a[ 2]) temp[ 1]--;
+    if (temp[ 3] > a[ 3]) temp[ 2]--;
+    if (temp[ 4] > a[ 4]) temp[ 3]--;
+    if (temp[ 5] > a[ 5]) temp[ 4]--;
+    if (temp[ 6] > a[ 6]) temp[ 5]--;
+    if (temp[ 7] > a[ 7]) temp[ 6]--;
+    if (temp[ 8] > a[ 8]) temp[ 7]--;
+    if (temp[ 9] > a[ 9]) temp[ 8]--;
+    if (temp[10] > a[10]) temp[ 9]--;
+    if (temp[11] > a[11]) temp[10]--;
+    if (temp[12] > a[12]) temp[11]--;
+    if (temp[13] > a[13]) temp[12]--;
+    if (temp[14] > a[14]) temp[13]--;
+    if (temp[15] > a[15]) temp[14]--;
+
+    // Copy result back to both r and a
+    r[ 0] = temp[ 0];
+    r[ 1] = temp[ 1];
+    r[ 2] = temp[ 2];
+    r[ 3] = temp[ 3];
+    r[ 4] = temp[ 4];
+    r[ 5] = temp[ 5];
+    r[ 6] = temp[ 6];
+    r[ 7] = temp[ 7];
+    r[ 8] = temp[ 8];
+    r[ 9] = temp[ 9];
+    r[10] = temp[10];
+    r[11] = temp[11];
+    r[12] = temp[12];
+    r[13] = temp[13];
+    r[14] = temp[14];
+    r[15] = temp[15];
 
     a[ 0] = r[ 0];
     a[ 1] = r[ 1];
@@ -1387,6 +1408,9 @@ DECLSPEC void point_add (PRIVATE_AS u32 *x1, PRIVATE_AS u32 *y1, PRIVATE_AS u32 
   mul_mod (t4, t4, t1); // t4 = t4*t1
 
   // left shift (t4 * 2):
+  // Capture carry bit before shift for proper overflow handling
+
+  const u32 carry = (t4[7] & 0x80000000) >> 31;
 
   t6[7] = t4[7] << 1 | t4[6] >> 31;
   t6[6] = t4[6] << 1 | t4[5] >> 31;
@@ -1397,18 +1421,16 @@ DECLSPEC void point_add (PRIVATE_AS u32 *x1, PRIVATE_AS u32 *y1, PRIVATE_AS u32 
   t6[1] = t4[1] << 1 | t4[0] >> 31;
   t6[0] = t4[0] << 1;
 
-  // don't discard the most significant bit, it's important too!
+  // Handle overflow: if MSB was set before shift, add omega and reduce mod P
 
-  if (t4[7] & 0x80000000)
+  if (carry)
   {
-    // use most significant bit and perform mod P, since we have: t4 * 2 % P
-
     u32 a[8] = { 0 };
 
     a[1] = 1;
-    a[0] = 0x000003d1; // omega (see: mul_mod ())
+    a[0] = 0x000003d1; // omega = 2^256 mod p
 
-    add (t6, t6, a);
+    add_mod (t6, t6, a); // use add_mod for proper reduction
   }
 
   sqr_mod (t5, t7); // t5 = t7*t7
