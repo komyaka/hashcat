@@ -103,6 +103,38 @@
 
 #include "inc_ecc_secp256k1.h"
 
+// Precomputed basepoint G and multiples in constant memory for better performance
+// This replaces per-thread private copies and improves occupancy
+CONSTANT_AS secp256k1_t preG_const = {
+  {
+    // x1, y1, -y1, x3, y3, -y3, x5, y5, -y5, x7, y7, -y7
+    SECP256K1_G_PRE_COMPUTED_00, SECP256K1_G_PRE_COMPUTED_01, SECP256K1_G_PRE_COMPUTED_02, SECP256K1_G_PRE_COMPUTED_03,
+    SECP256K1_G_PRE_COMPUTED_04, SECP256K1_G_PRE_COMPUTED_05, SECP256K1_G_PRE_COMPUTED_06, SECP256K1_G_PRE_COMPUTED_07,
+    SECP256K1_G_PRE_COMPUTED_08, SECP256K1_G_PRE_COMPUTED_09, SECP256K1_G_PRE_COMPUTED_10, SECP256K1_G_PRE_COMPUTED_11,
+    SECP256K1_G_PRE_COMPUTED_12, SECP256K1_G_PRE_COMPUTED_13, SECP256K1_G_PRE_COMPUTED_14, SECP256K1_G_PRE_COMPUTED_15,
+    SECP256K1_G_PRE_COMPUTED_16, SECP256K1_G_PRE_COMPUTED_17, SECP256K1_G_PRE_COMPUTED_18, SECP256K1_G_PRE_COMPUTED_19,
+    SECP256K1_G_PRE_COMPUTED_20, SECP256K1_G_PRE_COMPUTED_21, SECP256K1_G_PRE_COMPUTED_22, SECP256K1_G_PRE_COMPUTED_23,
+    SECP256K1_G_PRE_COMPUTED_24, SECP256K1_G_PRE_COMPUTED_25, SECP256K1_G_PRE_COMPUTED_26, SECP256K1_G_PRE_COMPUTED_27,
+    SECP256K1_G_PRE_COMPUTED_28, SECP256K1_G_PRE_COMPUTED_29, SECP256K1_G_PRE_COMPUTED_30, SECP256K1_G_PRE_COMPUTED_31,
+    SECP256K1_G_PRE_COMPUTED_32, SECP256K1_G_PRE_COMPUTED_33, SECP256K1_G_PRE_COMPUTED_34, SECP256K1_G_PRE_COMPUTED_35,
+    SECP256K1_G_PRE_COMPUTED_36, SECP256K1_G_PRE_COMPUTED_37, SECP256K1_G_PRE_COMPUTED_38, SECP256K1_G_PRE_COMPUTED_39,
+    SECP256K1_G_PRE_COMPUTED_40, SECP256K1_G_PRE_COMPUTED_41, SECP256K1_G_PRE_COMPUTED_42, SECP256K1_G_PRE_COMPUTED_43,
+    SECP256K1_G_PRE_COMPUTED_44, SECP256K1_G_PRE_COMPUTED_45, SECP256K1_G_PRE_COMPUTED_46, SECP256K1_G_PRE_COMPUTED_47,
+    SECP256K1_G_PRE_COMPUTED_48, SECP256K1_G_PRE_COMPUTED_49, SECP256K1_G_PRE_COMPUTED_50, SECP256K1_G_PRE_COMPUTED_51,
+    SECP256K1_G_PRE_COMPUTED_52, SECP256K1_G_PRE_COMPUTED_53, SECP256K1_G_PRE_COMPUTED_54, SECP256K1_G_PRE_COMPUTED_55,
+    SECP256K1_G_PRE_COMPUTED_56, SECP256K1_G_PRE_COMPUTED_57, SECP256K1_G_PRE_COMPUTED_58, SECP256K1_G_PRE_COMPUTED_59,
+    SECP256K1_G_PRE_COMPUTED_60, SECP256K1_G_PRE_COMPUTED_61, SECP256K1_G_PRE_COMPUTED_62, SECP256K1_G_PRE_COMPUTED_63,
+    SECP256K1_G_PRE_COMPUTED_64, SECP256K1_G_PRE_COMPUTED_65, SECP256K1_G_PRE_COMPUTED_66, SECP256K1_G_PRE_COMPUTED_67,
+    SECP256K1_G_PRE_COMPUTED_68, SECP256K1_G_PRE_COMPUTED_69, SECP256K1_G_PRE_COMPUTED_70, SECP256K1_G_PRE_COMPUTED_71,
+    SECP256K1_G_PRE_COMPUTED_72, SECP256K1_G_PRE_COMPUTED_73, SECP256K1_G_PRE_COMPUTED_74, SECP256K1_G_PRE_COMPUTED_75,
+    SECP256K1_G_PRE_COMPUTED_76, SECP256K1_G_PRE_COMPUTED_77, SECP256K1_G_PRE_COMPUTED_78, SECP256K1_G_PRE_COMPUTED_79,
+    SECP256K1_G_PRE_COMPUTED_80, SECP256K1_G_PRE_COMPUTED_81, SECP256K1_G_PRE_COMPUTED_82, SECP256K1_G_PRE_COMPUTED_83,
+    SECP256K1_G_PRE_COMPUTED_84, SECP256K1_G_PRE_COMPUTED_85, SECP256K1_G_PRE_COMPUTED_86, SECP256K1_G_PRE_COMPUTED_87,
+    SECP256K1_G_PRE_COMPUTED_88, SECP256K1_G_PRE_COMPUTED_89, SECP256K1_G_PRE_COMPUTED_90, SECP256K1_G_PRE_COMPUTED_91,
+    SECP256K1_G_PRE_COMPUTED_92, SECP256K1_G_PRE_COMPUTED_93, SECP256K1_G_PRE_COMPUTED_94, SECP256K1_G_PRE_COMPUTED_95
+  }
+};
+
 DECLSPEC u32 sub (PRIVATE_AS u32 *r, PRIVATE_AS const u32 *a, PRIVATE_AS const u32 *b)
 {
   u32 c = 0; // carry/borrow
@@ -526,57 +558,61 @@ DECLSPEC void mod_512 (PRIVATE_AS u32 *n)
     if ((r[ 0] | r[ 1] | r[ 2] | r[ 3] | r[ 4] | r[ 5] | r[ 6] | r[ 7] |
          r[ 8] | r[ 9] | r[10] | r[11] | r[12] | r[13] | r[14] | r[15]) == 0) break;
 
-    r[ 0] = a[ 0] - r[ 0];
-    r[ 1] = a[ 1] - r[ 1];
-    r[ 2] = a[ 2] - r[ 2];
-    r[ 3] = a[ 3] - r[ 3];
-    r[ 4] = a[ 4] - r[ 4];
-    r[ 5] = a[ 5] - r[ 5];
-    r[ 6] = a[ 6] - r[ 6];
-    r[ 7] = a[ 7] - r[ 7];
-    r[ 8] = a[ 8] - r[ 8];
-    r[ 9] = a[ 9] - r[ 9];
-    r[10] = a[10] - r[10];
-    r[11] = a[11] - r[11];
-    r[12] = a[12] - r[12];
-    r[13] = a[13] - r[13];
-    r[14] = a[14] - r[14];
-    r[15] = a[15] - r[15];
+    // Use temporary array to avoid read-after-write hazard in borrow propagation
+    u32 temp[16];
 
-    // take care of the "borrow" (we can't do it the other way around 15...1 because r[x] is changed!)
+    temp[ 0] = a[ 0] - r[ 0];
+    temp[ 1] = a[ 1] - r[ 1];
+    temp[ 2] = a[ 2] - r[ 2];
+    temp[ 3] = a[ 3] - r[ 3];
+    temp[ 4] = a[ 4] - r[ 4];
+    temp[ 5] = a[ 5] - r[ 5];
+    temp[ 6] = a[ 6] - r[ 6];
+    temp[ 7] = a[ 7] - r[ 7];
+    temp[ 8] = a[ 8] - r[ 8];
+    temp[ 9] = a[ 9] - r[ 9];
+    temp[10] = a[10] - r[10];
+    temp[11] = a[11] - r[11];
+    temp[12] = a[12] - r[12];
+    temp[13] = a[13] - r[13];
+    temp[14] = a[14] - r[14];
+    temp[15] = a[15] - r[15];
 
-    if (r[ 1] > a[ 1]) r[ 0]--;
-    if (r[ 2] > a[ 2]) r[ 1]--;
-    if (r[ 3] > a[ 3]) r[ 2]--;
-    if (r[ 4] > a[ 4]) r[ 3]--;
-    if (r[ 5] > a[ 5]) r[ 4]--;
-    if (r[ 6] > a[ 6]) r[ 5]--;
-    if (r[ 7] > a[ 7]) r[ 6]--;
-    if (r[ 8] > a[ 8]) r[ 7]--;
-    if (r[ 9] > a[ 9]) r[ 8]--;
-    if (r[10] > a[10]) r[ 9]--;
-    if (r[11] > a[11]) r[10]--;
-    if (r[12] > a[12]) r[11]--;
-    if (r[13] > a[13]) r[12]--;
-    if (r[14] > a[14]) r[13]--;
-    if (r[15] > a[15]) r[14]--;
+    // Borrow propagation: compare temp with original a[] values
 
-    a[ 0] = r[ 0];
-    a[ 1] = r[ 1];
-    a[ 2] = r[ 2];
-    a[ 3] = r[ 3];
-    a[ 4] = r[ 4];
-    a[ 5] = r[ 5];
-    a[ 6] = r[ 6];
-    a[ 7] = r[ 7];
-    a[ 8] = r[ 8];
-    a[ 9] = r[ 9];
-    a[10] = r[10];
-    a[11] = r[11];
-    a[12] = r[12];
-    a[13] = r[13];
-    a[14] = r[14];
-    a[15] = r[15];
+    if (temp[ 1] > a[ 1]) temp[ 0]--;
+    if (temp[ 2] > a[ 2]) temp[ 1]--;
+    if (temp[ 3] > a[ 3]) temp[ 2]--;
+    if (temp[ 4] > a[ 4]) temp[ 3]--;
+    if (temp[ 5] > a[ 5]) temp[ 4]--;
+    if (temp[ 6] > a[ 6]) temp[ 5]--;
+    if (temp[ 7] > a[ 7]) temp[ 6]--;
+    if (temp[ 8] > a[ 8]) temp[ 7]--;
+    if (temp[ 9] > a[ 9]) temp[ 8]--;
+    if (temp[10] > a[10]) temp[ 9]--;
+    if (temp[11] > a[11]) temp[10]--;
+    if (temp[12] > a[12]) temp[11]--;
+    if (temp[13] > a[13]) temp[12]--;
+    if (temp[14] > a[14]) temp[13]--;
+    if (temp[15] > a[15]) temp[14]--;
+
+    // Copy result directly to both r and a (no intermediate copy needed)
+    a[ 0] = r[ 0] = temp[ 0];
+    a[ 1] = r[ 1] = temp[ 1];
+    a[ 2] = r[ 2] = temp[ 2];
+    a[ 3] = r[ 3] = temp[ 3];
+    a[ 4] = r[ 4] = temp[ 4];
+    a[ 5] = r[ 5] = temp[ 5];
+    a[ 6] = r[ 6] = temp[ 6];
+    a[ 7] = r[ 7] = temp[ 7];
+    a[ 8] = r[ 8] = temp[ 8];
+    a[ 9] = r[ 9] = temp[ 9];
+    a[10] = r[10] = temp[10];
+    a[11] = r[11] = temp[11];
+    a[12] = r[12] = temp[12];
+    a[13] = r[13] = temp[13];
+    a[14] = r[14] = temp[14];
+    a[15] = r[15] = temp[15];
   }
 
   n[ 0] = a[ 0];
@@ -1397,30 +1433,10 @@ DECLSPEC void point_add (PRIVATE_AS u32 *x1, PRIVATE_AS u32 *y1, PRIVATE_AS u32 
   t3[6] = z1[6];
   t3[7] = z1[7];
 
-  // x2/y2:
+  // x2/y2 are const pointers, use them directly without copying
 
   u32 t4[8];
-
-  t4[0] = x2[0];
-  t4[1] = x2[1];
-  t4[2] = x2[2];
-  t4[3] = x2[3];
-  t4[4] = x2[4];
-  t4[5] = x2[5];
-  t4[6] = x2[6];
-  t4[7] = x2[7];
-
   u32 t5[8];
-
-  t5[0] = y2[0];
-  t5[1] = y2[1];
-  t5[2] = y2[2];
-  t5[3] = y2[3];
-  t5[4] = y2[4];
-  t5[5] = y2[5];
-  t5[6] = y2[6];
-  t5[7] = y2[7];
-
   u32 t6[8];
   u32 t7[8];
   u32 t8[8];
@@ -1429,8 +1445,8 @@ DECLSPEC void point_add (PRIVATE_AS u32 *x1, PRIVATE_AS u32 *y1, PRIVATE_AS u32 
   sqr_mod (t6, t3); // t6 = t3^2
 
   mul_mod (t7, t6, t3); // t7 = t6*t3
-  mul_mod (t6, t6, t4); // t6 = t6*t4
-  mul_mod (t7, t7, t5); // t7 = t7*t5
+  mul_mod (t6, t6, x2); // t6 = t6*x2 (use x2 directly)
+  mul_mod (t7, t7, y2); // t7 = t7*y2 (use y2 directly)
 
   sub_mod (t6, t6, t1); // t6 = t6-t1
   sub_mod (t7, t7, t2); // t7 = t7-t2
@@ -1441,6 +1457,9 @@ DECLSPEC void point_add (PRIVATE_AS u32 *x1, PRIVATE_AS u32 *y1, PRIVATE_AS u32 
   mul_mod (t4, t4, t1); // t4 = t4*t1
 
   // left shift (t4 * 2):
+  // Capture carry bit before shift for proper overflow handling
+
+  const u32 carry = (t4[7] & 0x80000000) >> 31;
 
   t6[7] = t4[7] << 1 | t4[6] >> 31;
   t6[6] = t4[6] << 1 | t4[5] >> 31;
@@ -1451,18 +1470,16 @@ DECLSPEC void point_add (PRIVATE_AS u32 *x1, PRIVATE_AS u32 *y1, PRIVATE_AS u32 
   t6[1] = t4[1] << 1 | t4[0] >> 31;
   t6[0] = t4[0] << 1;
 
-  // don't discard the most significant bit, it's important too!
+  // Handle overflow: if MSB was set before shift, add omega and reduce mod P
 
-  if (t4[7] & 0x80000000)
+  if (carry)
   {
-    // use most significant bit and perform mod P, since we have: t4 * 2 % P
-
     u32 a[8] = { 0 };
 
     a[1] = 1;
-    a[0] = 0x000003d1; // omega (see: mul_mod ())
+    a[0] = 0x000003d1; // omega = 2^256 mod p
 
-    add (t6, t6, a);
+    add_mod (t6, t6, a); // use add_mod for proper reduction
   }
 
   sqr_mod (t5, t7); // t5 = t7*t7

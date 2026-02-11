@@ -209,9 +209,6 @@ KERNEL_FQ KERNEL_FA void m35902_mxx (KERN_ATTR_RULES ())
 
   if (gid >= GID_CNT) return;
 
-  secp256k1_t preG;
-
-  set_precomputed_basepoint_g (&preG);
 
   COPY_PW (pws[gid]);
 
@@ -241,7 +238,7 @@ KERNEL_FQ KERNEL_FA void m35902_mxx (KERN_ATTR_RULES ())
     u32 x[8];
     u32 y[8];
 
-    point_mul_xy (x, y, prv_key, &preG);
+    point_mul_xy (x, y, prv_key, &preG_const);
 
     // Ethereum uses uncompressed public key (x || y) for address derivation
     // Store as big-endian bytes in u32 array (16 words = 64 bytes)
@@ -293,9 +290,6 @@ KERNEL_FQ KERNEL_FA void m35902_sxx (KERN_ATTR_RULES ())
     digests_buf[DIGESTS_OFFSET_HOST].digest_buf[DGST_R3]
   };
 
-  secp256k1_t preG;
-
-  set_precomputed_basepoint_g (&preG);
 
   COPY_PW (pws[gid]);
 
@@ -324,7 +318,7 @@ KERNEL_FQ KERNEL_FA void m35902_sxx (KERN_ATTR_RULES ())
     u32 x[8];
     u32 y[8];
 
-    point_mul_xy (x, y, prv_key, &preG);
+    point_mul_xy (x, y, prv_key, &preG_const);
 
     u32 pub_key[16];
 

@@ -146,9 +146,6 @@ KERNEL_FQ KERNEL_FA void m35903_mxx (KERN_ATTR_RULES ())
 
   if (gid >= GID_CNT) return;
 
-  secp256k1_t preG;
-
-  set_precomputed_basepoint_g (&preG);
 
   COPY_PW (pws[gid]);
 
@@ -180,7 +177,7 @@ KERNEL_FQ KERNEL_FA void m35903_mxx (KERN_ATTR_RULES ())
     u32 x[8];
     u32 y[8];
 
-    point_mul_xy (x, y, prv_key, &preG);
+    point_mul_xy (x, y, prv_key, &preG_const);
 
     // Ethereum: uncompressed public key (x || y) in big-endian
     u32 pub_key[16];
@@ -229,9 +226,6 @@ KERNEL_FQ KERNEL_FA void m35903_sxx (KERN_ATTR_RULES ())
     digests_buf[DIGESTS_OFFSET_HOST].digest_buf[DGST_R3]
   };
 
-  secp256k1_t preG;
-
-  set_precomputed_basepoint_g (&preG);
 
   COPY_PW (pws[gid]);
 
@@ -262,7 +256,7 @@ KERNEL_FQ KERNEL_FA void m35903_sxx (KERN_ATTR_RULES ())
     u32 x[8];
     u32 y[8];
 
-    point_mul_xy (x, y, prv_key, &preG);
+    point_mul_xy (x, y, prv_key, &preG_const);
 
     u32 pub_key[16];
 
