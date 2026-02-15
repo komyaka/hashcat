@@ -782,8 +782,8 @@ DECLSPEC void sqr_mod (PRIVATE_AS u32 *r, PRIVATE_AS const u32 *a)
     // Add diagonal term if i is even
     if ((i & 1) == 0)
     {
-      u32 half = i / 2;
-      u64 p = ((u64) a[half]) * a[half];
+      u32 half_idx = i / 2;
+      u64 p = ((u64) a[half_idx]) * a[half_idx];
 
       u64 d = ((u64) t1) << 32 | t0;
 
@@ -830,8 +830,8 @@ DECLSPEC void sqr_mod (PRIVATE_AS u32 *r, PRIVATE_AS const u32 *a)
     // Add diagonal term if i is even
     if ((i & 1) == 0)
     {
-      u32 half = i / 2;
-      u64 p = ((u64) a[half]) * a[half];
+      u32 half_idx = i / 2;
+      u64 p = ((u64) a[half_idx]) * a[half_idx];
 
       u64 d = ((u64) t1) << 32 | t0;
 
@@ -1610,55 +1610,37 @@ DECLSPEC void point_get_coords (PRIVATE_AS secp256k1_t *r, PRIVATE_AS const u32 
   point_double (rx, ry, rz);          // 2
   point_add    (rx, ry, rz, tx, ty);  // 3
 
-  // to affine:
+  // Save Z coordinate for batch inversion later
+  u32 rz3[8];
+  rz3[0] = rz[0];
+  rz3[1] = rz[1];
+  rz3[2] = rz[2];
+  rz3[3] = rz[3];
+  rz3[4] = rz[4];
+  rz3[5] = rz[5];
+  rz3[6] = rz[6];
+  rz3[7] = rz[7];
 
-  inv_mod (rz);
+  // Save X and Y coordinates for 3G
+  u32 rx3[8];
+  rx3[0] = rx[0];
+  rx3[1] = rx[1];
+  rx3[2] = rx[2];
+  rx3[3] = rx[3];
+  rx3[4] = rx[4];
+  rx3[5] = rx[5];
+  rx3[6] = rx[6];
+  rx3[7] = rx[7];
 
-  mul_mod (neg, rz, rz); // neg is temporary variable (z^2)
-  mul_mod (rx,  rx, neg);
-
-  mul_mod (rz, neg, rz);
-  mul_mod (ry, ry, rz);
-
-  r->xy[24] = rx[0];
-  r->xy[25] = rx[1];
-  r->xy[26] = rx[2];
-  r->xy[27] = rx[3];
-  r->xy[28] = rx[4];
-  r->xy[29] = rx[5];
-  r->xy[30] = rx[6];
-  r->xy[31] = rx[7];
-
-  r->xy[32] = ry[0];
-  r->xy[33] = ry[1];
-  r->xy[34] = ry[2];
-  r->xy[35] = ry[3];
-  r->xy[36] = ry[4];
-  r->xy[37] = ry[5];
-  r->xy[38] = ry[6];
-  r->xy[39] = ry[7];
-
-  // -3:
-
-  neg[0] = ry[0];
-  neg[1] = ry[1];
-  neg[2] = ry[2];
-  neg[3] = ry[3];
-  neg[4] = ry[4];
-  neg[5] = ry[5];
-  neg[6] = ry[6];
-  neg[7] = ry[7];
-
-  sub_mod (neg, p, neg);
-
-  r->xy[40] = neg[0];
-  r->xy[41] = neg[1];
-  r->xy[42] = neg[2];
-  r->xy[43] = neg[3];
-  r->xy[44] = neg[4];
-  r->xy[45] = neg[5];
-  r->xy[46] = neg[6];
-  r->xy[47] = neg[7];
+  u32 ry3[8];
+  ry3[0] = ry[0];
+  ry3[1] = ry[1];
+  ry3[2] = ry[2];
+  ry3[3] = ry[3];
+  ry3[4] = ry[4];
+  ry3[5] = ry[5];
+  ry3[6] = ry[6];
+  ry3[7] = ry[7];
 
 
   // 5:
@@ -1675,55 +1657,37 @@ DECLSPEC void point_get_coords (PRIVATE_AS secp256k1_t *r, PRIVATE_AS const u32 
   point_add (rx, ry, rz, tx, ty); // 4
   point_add (rx, ry, rz, tx, ty); // 5
 
-  // to affine:
+  // Save Z coordinate for batch inversion later
+  u32 rz5[8];
+  rz5[0] = rz[0];
+  rz5[1] = rz[1];
+  rz5[2] = rz[2];
+  rz5[3] = rz[3];
+  rz5[4] = rz[4];
+  rz5[5] = rz[5];
+  rz5[6] = rz[6];
+  rz5[7] = rz[7];
 
-  inv_mod (rz);
+  // Save X and Y coordinates for 5G
+  u32 rx5[8];
+  rx5[0] = rx[0];
+  rx5[1] = rx[1];
+  rx5[2] = rx[2];
+  rx5[3] = rx[3];
+  rx5[4] = rx[4];
+  rx5[5] = rx[5];
+  rx5[6] = rx[6];
+  rx5[7] = rx[7];
 
-  mul_mod (neg, rz, rz);
-  mul_mod (rx,  rx, neg);
-
-  mul_mod (rz, neg, rz);
-  mul_mod (ry, ry, rz);
-
-  r->xy[48] = rx[0];
-  r->xy[49] = rx[1];
-  r->xy[50] = rx[2];
-  r->xy[51] = rx[3];
-  r->xy[52] = rx[4];
-  r->xy[53] = rx[5];
-  r->xy[54] = rx[6];
-  r->xy[55] = rx[7];
-
-  r->xy[56] = ry[0];
-  r->xy[57] = ry[1];
-  r->xy[58] = ry[2];
-  r->xy[59] = ry[3];
-  r->xy[60] = ry[4];
-  r->xy[61] = ry[5];
-  r->xy[62] = ry[6];
-  r->xy[63] = ry[7];
-
-  // -5:
-
-  neg[0] = ry[0];
-  neg[1] = ry[1];
-  neg[2] = ry[2];
-  neg[3] = ry[3];
-  neg[4] = ry[4];
-  neg[5] = ry[5];
-  neg[6] = ry[6];
-  neg[7] = ry[7];
-
-  sub_mod (neg, p, neg);
-
-  r->xy[64] = neg[0];
-  r->xy[65] = neg[1];
-  r->xy[66] = neg[2];
-  r->xy[67] = neg[3];
-  r->xy[68] = neg[4];
-  r->xy[69] = neg[5];
-  r->xy[70] = neg[6];
-  r->xy[71] = neg[7];
+  u32 ry5[8];
+  ry5[0] = ry[0];
+  ry5[1] = ry[1];
+  ry5[2] = ry[2];
+  ry5[3] = ry[3];
+  ry5[4] = ry[4];
+  ry5[5] = ry[5];
+  ry5[6] = ry[6];
+  ry5[7] = ry[7];
 
 
   // 7:
@@ -1740,44 +1704,199 @@ DECLSPEC void point_get_coords (PRIVATE_AS secp256k1_t *r, PRIVATE_AS const u32 
   point_add (rx, ry, rz, tx, ty); // 6
   point_add (rx, ry, rz, tx, ty); // 7
 
-  // to affine:
+  // Save Z coordinate for batch inversion later (rz7 = rz)
+  u32 rz7[8];
+  rz7[0] = rz[0];
+  rz7[1] = rz[1];
+  rz7[2] = rz[2];
+  rz7[3] = rz[3];
+  rz7[4] = rz[4];
+  rz7[5] = rz[5];
+  rz7[6] = rz[6];
+  rz7[7] = rz[7];
 
-  inv_mod (rz);
+  // Save X and Y coordinates for 7G (rx and ry already contain these)
+  u32 rx7[8];
+  rx7[0] = rx[0];
+  rx7[1] = rx[1];
+  rx7[2] = rx[2];
+  rx7[3] = rx[3];
+  rx7[4] = rx[4];
+  rx7[5] = rx[5];
+  rx7[6] = rx[6];
+  rx7[7] = rx[7];
 
-  mul_mod (neg, rz, rz);
-  mul_mod (rx,  rx, neg);
+  u32 ry7[8];
+  ry7[0] = ry[0];
+  ry7[1] = ry[1];
+  ry7[2] = ry[2];
+  ry7[3] = ry[3];
+  ry7[4] = ry[4];
+  ry7[5] = ry[5];
+  ry7[6] = ry[6];
+  ry7[7] = ry[7];
 
-  mul_mod (rz, neg, rz);
-  mul_mod (ry, ry, rz);
+  // Montgomery's trick: batch inversion of rz3, rz5, rz7
+  // Compute: rz3_rz5_prod = rz3 * rz5
+  u32 rz3_rz5_prod[8];
+  mul_mod (rz3_rz5_prod, rz3, rz5);
 
-  r->xy[72] = rx[0];
-  r->xy[73] = rx[1];
-  r->xy[74] = rx[2];
-  r->xy[75] = rx[3];
-  r->xy[76] = rx[4];
-  r->xy[77] = rx[5];
-  r->xy[78] = rx[6];
-  r->xy[79] = rx[7];
+  // Compute: combined_prod = rz3 * rz5 * rz7
+  u32 combined_prod[8];
+  mul_mod (combined_prod, rz3_rz5_prod, rz7);
 
-  r->xy[80] = ry[0];
-  r->xy[81] = ry[1];
-  r->xy[82] = ry[2];
-  r->xy[83] = ry[3];
-  r->xy[84] = ry[4];
-  r->xy[85] = ry[5];
-  r->xy[86] = ry[6];
-  r->xy[87] = ry[7];
+  // Compute: 1 / (rz3 * rz5 * rz7) - the only expensive inversion (inverted in place)
+  inv_mod (combined_prod);
+
+  // Now compute individual inverses using the inverted product:
+  // rz7_inv = combined_prod * rz3_rz5_prod
+  u32 rz7_inv[8];
+  mul_mod (rz7_inv, combined_prod, rz3_rz5_prod);
+
+  // partial_inv = combined_prod * rz7 = 1 / (rz3 * rz5)
+  u32 partial_inv[8];
+  mul_mod (partial_inv, combined_prod, rz7);
+
+  // rz5_inv = partial_inv * rz3
+  u32 rz5_inv[8];
+  mul_mod (rz5_inv, partial_inv, rz3);
+
+  // rz3_inv = partial_inv * rz5
+  u32 rz3_inv[8];
+  mul_mod (rz3_inv, partial_inv, rz5);
+
+  // Now convert each point from Jacobian to affine coordinates
+  // For 3G:
+  mul_mod (neg, rz3_inv, rz3_inv); // neg is temporary variable (z_inv^2)
+  mul_mod (rx3, rx3, neg);          // x_affine = x * z_inv^2
+
+  mul_mod (rz3_inv, neg, rz3_inv);  // rz3_inv = z_inv^3
+  mul_mod (ry3, ry3, rz3_inv);      // y_affine = y * z_inv^3
+
+  r->xy[24] = rx3[0];
+  r->xy[25] = rx3[1];
+  r->xy[26] = rx3[2];
+  r->xy[27] = rx3[3];
+  r->xy[28] = rx3[4];
+  r->xy[29] = rx3[5];
+  r->xy[30] = rx3[6];
+  r->xy[31] = rx3[7];
+
+  r->xy[32] = ry3[0];
+  r->xy[33] = ry3[1];
+  r->xy[34] = ry3[2];
+  r->xy[35] = ry3[3];
+  r->xy[36] = ry3[4];
+  r->xy[37] = ry3[5];
+  r->xy[38] = ry3[6];
+  r->xy[39] = ry3[7];
+
+  // -3:
+
+  neg[0] = ry3[0];
+  neg[1] = ry3[1];
+  neg[2] = ry3[2];
+  neg[3] = ry3[3];
+  neg[4] = ry3[4];
+  neg[5] = ry3[5];
+  neg[6] = ry3[6];
+  neg[7] = ry3[7];
+
+  sub_mod (neg, p, neg);
+
+  r->xy[40] = neg[0];
+  r->xy[41] = neg[1];
+  r->xy[42] = neg[2];
+  r->xy[43] = neg[3];
+  r->xy[44] = neg[4];
+  r->xy[45] = neg[5];
+  r->xy[46] = neg[6];
+  r->xy[47] = neg[7];
+
+
+  // For 5G:
+  mul_mod (neg, rz5_inv, rz5_inv); // neg is temporary variable (z_inv^2)
+  mul_mod (rx5, rx5, neg);          // x_affine = x * z_inv^2
+
+  mul_mod (rz5_inv, neg, rz5_inv);  // rz5_inv = z_inv^3
+  mul_mod (ry5, ry5, rz5_inv);      // y_affine = y * z_inv^3
+
+  r->xy[48] = rx5[0];
+  r->xy[49] = rx5[1];
+  r->xy[50] = rx5[2];
+  r->xy[51] = rx5[3];
+  r->xy[52] = rx5[4];
+  r->xy[53] = rx5[5];
+  r->xy[54] = rx5[6];
+  r->xy[55] = rx5[7];
+
+  r->xy[56] = ry5[0];
+  r->xy[57] = ry5[1];
+  r->xy[58] = ry5[2];
+  r->xy[59] = ry5[3];
+  r->xy[60] = ry5[4];
+  r->xy[61] = ry5[5];
+  r->xy[62] = ry5[6];
+  r->xy[63] = ry5[7];
+
+  // -5:
+
+  neg[0] = ry5[0];
+  neg[1] = ry5[1];
+  neg[2] = ry5[2];
+  neg[3] = ry5[3];
+  neg[4] = ry5[4];
+  neg[5] = ry5[5];
+  neg[6] = ry5[6];
+  neg[7] = ry5[7];
+
+  sub_mod (neg, p, neg);
+
+  r->xy[64] = neg[0];
+  r->xy[65] = neg[1];
+  r->xy[66] = neg[2];
+  r->xy[67] = neg[3];
+  r->xy[68] = neg[4];
+  r->xy[69] = neg[5];
+  r->xy[70] = neg[6];
+  r->xy[71] = neg[7];
+
+
+  // For 7G:
+  mul_mod (neg, rz7_inv, rz7_inv); // neg is temporary variable (z_inv^2)
+  mul_mod (rx7, rx7, neg);          // x_affine = x * z_inv^2
+
+  mul_mod (rz7_inv, neg, rz7_inv);  // rz7_inv = z_inv^3
+  mul_mod (ry7, ry7, rz7_inv);      // y_affine = y * z_inv^3
+
+  r->xy[72] = rx7[0];
+  r->xy[73] = rx7[1];
+  r->xy[74] = rx7[2];
+  r->xy[75] = rx7[3];
+  r->xy[76] = rx7[4];
+  r->xy[77] = rx7[5];
+  r->xy[78] = rx7[6];
+  r->xy[79] = rx7[7];
+
+  r->xy[80] = ry7[0];
+  r->xy[81] = ry7[1];
+  r->xy[82] = ry7[2];
+  r->xy[83] = ry7[3];
+  r->xy[84] = ry7[4];
+  r->xy[85] = ry7[5];
+  r->xy[86] = ry7[6];
+  r->xy[87] = ry7[7];
 
   // -7:
 
-  neg[0] = ry[0];
-  neg[1] = ry[1];
-  neg[2] = ry[2];
-  neg[3] = ry[3];
-  neg[4] = ry[4];
-  neg[5] = ry[5];
-  neg[6] = ry[6];
-  neg[7] = ry[7];
+  neg[0] = ry7[0];
+  neg[1] = ry7[1];
+  neg[2] = ry7[2];
+  neg[3] = ry7[3];
+  neg[4] = ry7[4];
+  neg[5] = ry7[5];
+  neg[6] = ry7[6];
+  neg[7] = ry7[7];
 
   sub_mod (neg, p, neg);
 
