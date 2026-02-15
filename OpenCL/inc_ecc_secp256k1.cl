@@ -782,8 +782,8 @@ DECLSPEC void sqr_mod (PRIVATE_AS u32 *r, PRIVATE_AS const u32 *a)
     // Add diagonal term if i is even
     if ((i & 1) == 0)
     {
-      u32 half = i / 2;
-      u64 p = ((u64) a[half]) * a[half];
+      u32 half_idx = i / 2;
+      u64 p = ((u64) a[half_idx]) * a[half_idx];
 
       u64 d = ((u64) t1) << 32 | t0;
 
@@ -830,8 +830,8 @@ DECLSPEC void sqr_mod (PRIVATE_AS u32 *r, PRIVATE_AS const u32 *a)
     // Add diagonal term if i is even
     if ((i & 1) == 0)
     {
-      u32 half = i / 2;
-      u64 p = ((u64) a[half]) * a[half];
+      u32 half_idx = i / 2;
+      u64 p = ((u64) a[half_idx]) * a[half_idx];
 
       u64 d = ((u64) t1) << 32 | t0;
 
