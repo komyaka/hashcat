@@ -1745,15 +1745,15 @@ DECLSPEC void point_get_coords (PRIVATE_AS secp256k1_t *r, PRIVATE_AS const u32 
   u32 b[8];
   mul_mod (b, a, rz7);
 
-  // Compute: b_inv = 1 / (rz3 * rz5 * rz7) - the only expensive inversion
+  // Compute: 1 / (rz3 * rz5 * rz7) - the only expensive inversion (b is inverted in place)
   inv_mod (b);
 
-  // Now compute individual inverses:
-  // rz7_inv = b_inv * a = b_inv * (rz3 * rz5)
+  // Now compute individual inverses using the inverted product b:
+  // rz7_inv = b * a = b * (rz3 * rz5)
   u32 rz7_inv[8];
   mul_mod (rz7_inv, b, a);
 
-  // temp = b_inv * rz7
+  // temp = b * rz7
   u32 temp[8];
   mul_mod (temp, b, rz7);
 
@@ -1767,7 +1767,7 @@ DECLSPEC void point_get_coords (PRIVATE_AS secp256k1_t *r, PRIVATE_AS const u32 
 
   // Now convert each point from Jacobian to affine coordinates
   // For 3G:
-  mul_mod (neg, rz3_inv, rz3_inv); // neg = z_inv^2
+  mul_mod (neg, rz3_inv, rz3_inv); // neg is temporary variable (z_inv^2)
   mul_mod (rx3, rx3, neg);          // x_affine = x * z_inv^2
 
   mul_mod (rz3_inv, neg, rz3_inv);  // rz3_inv = z_inv^3
@@ -1815,7 +1815,7 @@ DECLSPEC void point_get_coords (PRIVATE_AS secp256k1_t *r, PRIVATE_AS const u32 
 
 
   // For 5G:
-  mul_mod (neg, rz5_inv, rz5_inv); // neg = z_inv^2
+  mul_mod (neg, rz5_inv, rz5_inv); // neg is temporary variable (z_inv^2)
   mul_mod (rx5, rx5, neg);          // x_affine = x * z_inv^2
 
   mul_mod (rz5_inv, neg, rz5_inv);  // rz5_inv = z_inv^3
@@ -1863,7 +1863,7 @@ DECLSPEC void point_get_coords (PRIVATE_AS secp256k1_t *r, PRIVATE_AS const u32 
 
 
   // For 7G:
-  mul_mod (neg, rz7_inv, rz7_inv); // neg = z_inv^2
+  mul_mod (neg, rz7_inv, rz7_inv); // neg is temporary variable (z_inv^2)
   mul_mod (rx7, rx7, neg);          // x_affine = x * z_inv^2
 
   mul_mod (rz7_inv, neg, rz7_inv);  // rz7_inv = z_inv^3
