@@ -768,13 +768,15 @@ DECLSPEC void sqr_mod (PRIVATE_AS u32 *r, PRIVATE_AS const u32 *a)
       u64 d = ((u64) t1) << 32 | t0;
 
       // Double the product
-      d += p;
-      d += p;
+      u64 p2 = p + p;  // 2*p
+      u32 overflow = (p2 < p) ? 1 : 0;  // Check if doubling overflowed
+      
+      d += p2;
 
       t0 = (u32) d;
       t1 = d >> 32;
 
-      c += (d < (p << 1)); // carry
+      c += (d < p2) + overflow;  // Proper carry detection
     }
 
     // Add diagonal term if i is even
@@ -814,13 +816,15 @@ DECLSPEC void sqr_mod (PRIVATE_AS u32 *r, PRIVATE_AS const u32 *a)
       u64 d = ((u64) t1) << 32 | t0;
 
       // Double the product
-      d += p;
-      d += p;
+      u64 p2 = p + p;  // 2*p
+      u32 overflow = (p2 < p) ? 1 : 0;  // Check if doubling overflowed
+      
+      d += p2;
 
       t0 = (u32) d;
       t1 = d >> 32;
 
-      c += (d < (p << 1));
+      c += (d < p2) + overflow;  // Proper carry detection
     }
 
     // Add diagonal term if i is even
@@ -1009,9 +1013,11 @@ DECLSPEC void inv_mod (PRIVATE_AS u32 *a)
    * Actual: 255 squarings + ~128 multiplications (average)
    */
 
-  // p-2 in 32-bit limbs
+  // p-2 in 32-bit limbs (secp256k1 prime minus 2)
+  // p = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F
+  // p-2 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2D
   u32 exp[8];
-  exp[0] = SECP256K1_P0 - 2; // 0xFFFFFC2D
+  exp[0] = SECP256K1_P0 - 2; // 0xFFFFFC2F - 2 = 0xFFFFFC2D (no underflow)
   exp[1] = SECP256K1_P1;      // 0xFFFFFFFE  
   exp[2] = SECP256K1_P2;      // 0xFFFFFFFF
   exp[3] = SECP256K1_P3;      // 0xFFFFFFFF
@@ -1045,15 +1051,16 @@ DECLSPEC void inv_mod (PRIVATE_AS u32 *a)
     // Check if this bit is set in the exponent
     u32 limb_idx = bit_idx >> 5;        // bit_idx / 32
     u32 bit_pos = bit_idx & 0x1f;       // bit_idx % 32
-    u32 bit_set = (exp[limb_idx] >> bit_pos) & 1;
+    u32 bit_set = (exp[limb_idx] >> bit_pos) & 1;  // bit_set ∈ {0, 1}
 
     // Conditionally multiply: if bit is set, multiply result by base
     // We always do the multiplication, but only update result if bit_set == 1
     mul_mod(temp, result, base);
     
     // Constant-time conditional move: result = bit_set ? temp : result
-    // This avoids branches
-    u32 mask = -(bit_set);  // 0xFFFFFFFF if bit_set==1, 0x00000000 if bit_set==0
+    // Using bitwise mask to avoid branches (GPU-friendly)
+    // Since bit_set ∈ {0, 1}, negation produces 0x00000000 or 0xFFFFFFFF
+    u32 mask = -(bit_set);  // Two's complement: -0 = 0x00000000, -1 = 0xFFFFFFFF
     result[0] = (temp[0] & mask) | (result[0] & ~mask);
     result[1] = (temp[1] & mask) | (result[1] & ~mask);
     result[2] = (temp[2] & mask) | (result[2] & ~mask);
