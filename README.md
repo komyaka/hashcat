@@ -139,6 +139,18 @@ In order to maintain the quality and integrity of the **hashcat** source tree, a
 ```
 Каждое слово из `words_left.txt` комбинируется с каждым словом из `words_right.txt`.
 
+**Пример 4: Атака по словарю с правилами**
+```bash
+./hashcat -m 35900 -a 0 bitcoin_addresses.txt wordlist.txt -r rules/best64.rule
+```
+Применение правил трансформации к словарю.
+
+**Пример 5: Атака по маске с инкрементом длины**
+```bash
+./hashcat -m 35900 -a 3 bitcoin_addresses.txt ?l?l?l?l?l?l?l?l --increment --increment-min 4
+```
+Перебор строчных слов длиной от 4 до 8 символов.
+
 ##### Режим 35901 — Bitcoin Brainwallet (SHA3-256) #####
 
 Парольная фраза хешируется через SHA3-256 для получения приватного ключа Bitcoin.
@@ -159,6 +171,18 @@ In order to maintain the quality and integrity of the **hashcat** source tree, a
 ./hashcat -m 35901 -a 3 bitcoin_addresses.txt -1 ?l?d ?1?1?1?1?1?1?1?1
 ```
 Перебор 8-символьных строк из строчных букв и цифр.
+
+**Пример 4: Комбинаторная атака**
+```bash
+./hashcat -m 35901 -a 1 bitcoin_addresses.txt words1.txt words2.txt
+```
+Комбинирование слов из двух словарей.
+
+**Пример 5: Атака по маске с инкрементом длины**
+```bash
+./hashcat -m 35901 -a 3 bitcoin_addresses.txt ?a?a?a?a?a?a --increment --increment-min 3
+```
+Перебор ASCII-символов длиной от 3 до 6 символов.
 
 ##### Режим 35902 — Ethereum Brainwallet (Keccak-256) #####
 
@@ -181,6 +205,18 @@ In order to maintain the quality and integrity of the **hashcat** source tree, a
 ./hashcat -m 35902 -a 0 ethereum_addresses.txt wordlist.txt -r rules/dive.rule
 ```
 
+**Пример 4: Комбинаторная атака**
+```bash
+./hashcat -m 35902 -a 1 ethereum_addresses.txt words_part1.txt words_part2.txt
+```
+Каждое слово из `words_part1.txt` комбинируется с каждым словом из `words_part2.txt`.
+
+**Пример 5: Атака по маске с инкрементом длины**
+```bash
+./hashcat -m 35902 -a 3 ethereum_addresses.txt ?l?l?l?l?l?l?l?l --increment --increment-min 3
+```
+Перебор строчных слов длиной от 3 до 8 символов.
+
 ##### Режим 35903 — Ethereum Brainwallet (SHA-256) #####
 
 Парольная фраза хешируется через SHA-256 для получения приватного ключа Ethereum.
@@ -190,12 +226,24 @@ In order to maintain the quality and integrity of the **hashcat** source tree, a
 ./hashcat -m 35903 -a 0 ethereum_addresses.txt wordlist.txt
 ```
 
-**Пример 2: Комбинаторная атака**
+**Пример 2: Атака по словарю с правилами**
+```bash
+./hashcat -m 35903 -a 0 ethereum_addresses.txt wordlist.txt -r rules/best64.rule
+```
+Применение правил трансформации к словарю.
+
+**Пример 3: Комбинаторная атака**
 ```bash
 ./hashcat -m 35903 -a 1 ethereum_addresses.txt words_part1.txt words_part2.txt
 ```
 
-**Пример 3: Атака по маске с инкрементом длины**
+**Пример 4: Атака по маске (брутфорс)**
+```bash
+./hashcat -m 35903 -a 3 ethereum_addresses.txt ?a?a?a?a?a?a
+```
+Перебор всех комбинаций из 6 печатных ASCII-символов.
+
+**Пример 5: Атака по маске с инкрементом длины**
 ```bash
 ./hashcat -m 35903 -a 3 ethereum_addresses.txt ?a?a?a?a?a?a?a?a --increment --increment-min 4
 ```
@@ -220,6 +268,18 @@ In order to maintain the quality and integrity of the **hashcat** source tree, a
 ```bash
 ./hashcat -m 35904 -a 0 ethereum_addresses.txt wordlist.txt -r rules/rockyou-30000.rule
 ```
+
+**Пример 4: Комбинаторная атака**
+```bash
+./hashcat -m 35904 -a 1 ethereum_addresses.txt words_left.txt words_right.txt
+```
+Комбинирование слов из двух словарей.
+
+**Пример 5: Атака по маске с инкрементом длины**
+```bash
+./hashcat -m 35904 -a 3 ethereum_addresses.txt ?d?d?d?d?d?d?d?d --increment --increment-min 4
+```
+Перебор числовых фраз длиной от 4 до 8 цифр.
 
 #### Самопроверочные хеши (self-test) ####
 
