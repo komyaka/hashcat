@@ -743,6 +743,204 @@ DECLSPEC void mul_mod (PRIVATE_AS u32 *r, PRIVATE_AS const u32 *a, PRIVATE_AS co
   }
 }
 
+DECLSPEC void sqr_mod (PRIVATE_AS u32 *r, PRIVATE_AS const u32 *a)
+{
+  u32 t[16] = { 0 }; // we need up to double the space (2 * 8)
+
+  /*
+   * First compute a * a with symmetry optimization:
+   * For squaring, a[j] * a[i-j] = a[i-j] * a[j], so we can compute
+   * half the products and double them, then add the diagonal terms
+   */
+
+  u32 t0 = 0;
+  u32 t1 = 0;
+  u32 c  = 0;
+
+  // Handle lower half of product (i = 0 to 7)
+  for (u32 i = 0; i < 8; i++)
+  {
+    // Add cross products (doubled)
+    for (u32 j = 0; j < (i + 1) / 2; j++)
+    {
+      u64 p = ((u64) a[j]) * a[i - j];
+
+      u64 d = ((u64) t1) << 32 | t0;
+
+      // Double the product
+      d += p;
+      d += p;
+
+      t0 = (u32) d;
+      t1 = d >> 32;
+
+      c += (d < (p << 1)); // carry
+    }
+
+    // Add diagonal term if i is even
+    if ((i & 1) == 0)
+    {
+      u32 half = i / 2;
+      u64 p = ((u64) a[half]) * a[half];
+
+      u64 d = ((u64) t1) << 32 | t0;
+
+      d += p;
+
+      t0 = (u32) d;
+      t1 = d >> 32;
+
+      c += d < p;
+    }
+
+    t[i] = t0;
+
+    t0 = t1;
+    t1 = c;
+
+    c = 0;
+  }
+
+  // Handle upper half of product (i = 8 to 15)
+  for (u32 i = 8; i < 15; i++)
+  {
+    // Add cross products (doubled)
+    u32 j_start = i - 7;
+    u32 j_end = (i + 1) / 2;
+    for (u32 j = j_start; j < j_end; j++)
+    {
+      u64 p = ((u64) a[j]) * a[i - j];
+
+      u64 d = ((u64) t1) << 32 | t0;
+
+      // Double the product
+      d += p;
+      d += p;
+
+      t0 = (u32) d;
+      t1 = d >> 32;
+
+      c += (d < (p << 1));
+    }
+
+    // Add diagonal term if i is even
+    if ((i & 1) == 0)
+    {
+      u32 half = i / 2;
+      u64 p = ((u64) a[half]) * a[half];
+
+      u64 d = ((u64) t1) << 32 | t0;
+
+      d += p;
+
+      t0 = (u32) d;
+      t1 = d >> 32;
+
+      c += d < p;
+    }
+
+    t[i] = t0;
+
+    t0 = t1;
+    t1 = c;
+
+    c = 0;
+  }
+
+  t[15] = t0;
+
+
+
+  /*
+   * Now do the modulo operation:
+   * (r = t % p)
+   *
+   * This is IDENTICAL to mul_mod's reduction (lines 664-743)
+   * http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf (p.354 or p.9 in that document)
+   */
+
+  u32 tmp[16] = { 0 };
+
+  // c = 0;
+
+  // Note: SECP256K1_P = 2^256 - 2^32 - 977 (0x03d1 = 977)
+  // multiply t[8]...t[15] by omega:
+
+  for (u32 i = 0, j = 8; i < 8; i++, j++)
+  {
+    u64 p = ((u64) 0x03d1) * t[j] + c;
+
+    tmp[i] = (u32) p;
+
+    c = p >> 32;
+  }
+
+  tmp[8] = c;
+
+  c = add (tmp + 1, tmp + 1, t + 8); // modifies tmp[1]...tmp[8]
+
+  tmp[9] = c;
+
+
+  // r = t + tmp
+
+  c = add (r, t, tmp);
+
+  // multiply t[0]...t[7] by omega:
+
+  u32 c2 = 0;
+
+  // memset (t, 0, sizeof (t));
+
+  for (u32 i = 0, j = 8; i < 8; i++, j++)
+  {
+    u64 p = ((u64) 0x3d1) * tmp[j] + c2;
+
+    t[i] = (u32) p;
+
+    c2 = p >> 32;
+  }
+
+  t[8] = c2;
+
+  c2 = add (t + 1, t + 1, tmp + 8); // modifies t[1]...t[8]
+
+  t[9] = c2;
+
+
+  // r = r + t
+
+  c2 = add (r, r, t);
+
+  c += c2;
+
+  t[0] = SECP256K1_P0;
+  t[1] = SECP256K1_P1;
+  t[2] = SECP256K1_P2;
+  t[3] = SECP256K1_P3;
+  t[4] = SECP256K1_P4;
+  t[5] = SECP256K1_P5;
+  t[6] = SECP256K1_P6;
+  t[7] = SECP256K1_P7;
+
+  for (u32 i = c; i > 0; i--)
+  {
+    sub (r, r, t);
+  }
+
+  for (int i = 7; i >= 0; i--)
+  {
+    if (r[i] < t[i]) break;
+
+    if (r[i] > t[i])
+    {
+      sub (r, r, t);
+
+      break;
+    }
+  }
+}
+
 DECLSPEC void sqrt_mod (PRIVATE_AS u32 *r)
 {
   // Fermat's Little Theorem
@@ -772,7 +970,7 @@ DECLSPEC void sqrt_mod (PRIVATE_AS u32 *r)
 
   for (u32 i = 255; i > 1; i--) // we just skip the last 2 multiplications (=> exp / 4)
   {
-    mul_mod (t, t, t); // r * r
+    sqr_mod (t, t); // r * r
 
     u32 idx  = i >> 5;
     u32 mask = 1 << (i & 0x1f);
@@ -1119,13 +1317,13 @@ DECLSPEC void point_double (PRIVATE_AS u32 *x, PRIVATE_AS u32 *y, PRIVATE_AS u32
   u32 t5[8];
   u32 t6[8];
 
-  mul_mod (t4, t1, t1); // t4 = x^2
+  sqr_mod (t4, t1); // t4 = x^2
 
-  mul_mod (t5, t2, t2); // t5 = y^2
+  sqr_mod (t5, t2); // t5 = y^2
 
   mul_mod (t1, t1, t5); // t1 = x*y^2
 
-  mul_mod (t5, t5, t5); // t5 = t5^2 = y^4
+  sqr_mod (t5, t5); // t5 = t5^2 = y^4
 
   // here the z^2 and z^4 is not needed for a = 0
 
@@ -1167,7 +1365,7 @@ DECLSPEC void point_double (PRIVATE_AS u32 *x, PRIVATE_AS u32 *y, PRIVATE_AS u32
   t4[6] = t4[6] >> 1 | t4[7] << 31;
   t4[7] = t4[7] >> 1 | c     << 31;
 
-  mul_mod (t6, t4, t4); // t6 = t4^2 = (3/2 * x^2)^2
+  sqr_mod (t6, t4); // t6 = t4^2 = (3/2 * x^2)^2
 
   add_mod (t2, t1, t1); // t2 = 2 * t1
 
@@ -1337,7 +1535,7 @@ DECLSPEC void point_add (PRIVATE_AS u32 *x1, PRIVATE_AS u32 *y1, PRIVATE_AS u32 
   u32 t8[8];
   u32 t9[8];
 
-  mul_mod (t6, t3, t3); // t6 = t3^2
+  sqr_mod (t6, t3); // t6 = t3^2
 
   mul_mod (t7, t6, t3); // t7 = t6*t3
   mul_mod (t6, t6, t4); // t6 = t6*t4
@@ -1347,7 +1545,7 @@ DECLSPEC void point_add (PRIVATE_AS u32 *x1, PRIVATE_AS u32 *y1, PRIVATE_AS u32 
   sub_mod (t7, t7, t2); // t7 = t7-t2
 
   mul_mod (t8, t3, t6); // t8 = t3*t6
-  mul_mod (t4, t6, t6); // t4 = t6^2
+  sqr_mod (t4, t6); // t4 = t6^2
   mul_mod (t9, t4, t6); // t9 = t4*t6
   mul_mod (t4, t4, t1); // t4 = t4*t1
 
@@ -1376,7 +1574,7 @@ DECLSPEC void point_add (PRIVATE_AS u32 *x1, PRIVATE_AS u32 *y1, PRIVATE_AS u32 
     add (t6, t6, a);
   }
 
-  mul_mod (t5, t7, t7); // t5 = t7*t7
+  sqr_mod (t5, t7); // t5 = t7*t7
 
   sub_mod (t5, t5, t6); // t5 = t5-t6
   sub_mod (t5, t5, t9); // t5 = t5-t9
