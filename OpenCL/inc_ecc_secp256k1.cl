@@ -1737,33 +1737,33 @@ DECLSPEC void point_get_coords (PRIVATE_AS secp256k1_t *r, PRIVATE_AS const u32 
   ry7[7] = ry[7];
 
   // Montgomery's trick: batch inversion of rz3, rz5, rz7
-  // Compute: a = rz3 * rz5
-  u32 a[8];
-  mul_mod (a, rz3, rz5);
+  // Compute: rz3_rz5_prod = rz3 * rz5
+  u32 rz3_rz5_prod[8];
+  mul_mod (rz3_rz5_prod, rz3, rz5);
 
-  // Compute: b = a * rz7 = rz3 * rz5 * rz7
-  u32 b[8];
-  mul_mod (b, a, rz7);
+  // Compute: combined_prod = rz3 * rz5 * rz7
+  u32 combined_prod[8];
+  mul_mod (combined_prod, rz3_rz5_prod, rz7);
 
-  // Compute: 1 / (rz3 * rz5 * rz7) - the only expensive inversion (b is inverted in place)
-  inv_mod (b);
+  // Compute: 1 / (rz3 * rz5 * rz7) - the only expensive inversion (inverted in place)
+  inv_mod (combined_prod);
 
-  // Now compute individual inverses using the inverted product b:
-  // rz7_inv = b * a = b * (rz3 * rz5)
+  // Now compute individual inverses using the inverted product:
+  // rz7_inv = combined_prod * rz3_rz5_prod
   u32 rz7_inv[8];
-  mul_mod (rz7_inv, b, a);
+  mul_mod (rz7_inv, combined_prod, rz3_rz5_prod);
 
-  // temp = b * rz7
-  u32 temp[8];
-  mul_mod (temp, b, rz7);
+  // partial_inv = combined_prod * rz7 = 1 / (rz3 * rz5)
+  u32 partial_inv[8];
+  mul_mod (partial_inv, combined_prod, rz7);
 
-  // rz5_inv = temp * rz3
+  // rz5_inv = partial_inv * rz3
   u32 rz5_inv[8];
-  mul_mod (rz5_inv, temp, rz3);
+  mul_mod (rz5_inv, partial_inv, rz3);
 
-  // rz3_inv = temp * rz5
+  // rz3_inv = partial_inv * rz5
   u32 rz3_inv[8];
-  mul_mod (rz3_inv, temp, rz5);
+  mul_mod (rz3_inv, partial_inv, rz5);
 
   // Now convert each point from Jacobian to affine coordinates
   // For 3G:
