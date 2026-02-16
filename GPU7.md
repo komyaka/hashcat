@@ -844,6 +844,185 @@ cat wordlist1.txt wordlist2.txt wordlist3.txt | ./hashcat -m 35900 bitcoin_addre
   -r rules/toggles1.rule
 ```
 
+### 9. Стратегии гибридных атак (-a 6 и -a 7) для корпоративных аудитов
+
+Гибридные атаки комбинируют словари с масками, что делает их чрезвычайно эффективными для аудита реальных систем, где пользователи создают пароли по предсказуемым шаблонам.
+
+#### Архитектура "Penetrator" — многоуровневая стратегия
+
+**Уровень 1: Базовые паттерны (покрывает ~40% паролей)**
+
+```bash
+# 1.1. Слово + год (самый распространённый паттерн)
+./hashcat -m 35900 -a 6 addresses.txt common_words.txt ?d?d?d?d
+
+# 1.2. Слово + спецсимвол + цифры (compliance-паттерн)
+./hashcat -m 35900 -a 6 addresses.txt corporate_dict.txt ?s?d?d
+
+# 1.3. Слово + восклицательный знак (самый популярный спецсимвол)
+./hashcat -m 35900 -a 6 addresses.txt wordlist.txt !
+
+# 1.4. Слово + год + спецсимвол
+./hashcat -m 35900 -a 6 addresses.txt wordlist.txt ?d?d?d?d?s
+```
+
+**Уровень 2: Расширенные паттерны (дополнительные ~20%)**
+
+```bash
+# 2.1. Год + слово (обратный порядок)
+./hashcat -m 35900 -a 7 addresses.txt ?d?d?d?d wordlist.txt
+
+# 2.2. Слово + месяц/день (01-31)
+./hashcat -m 35900 -a 6 addresses.txt wordlist.txt -1 0123 ?1?d
+
+# 2.3. Слово + короткий PIN (00-99)
+./hashcat -m 35900 -a 6 addresses.txt wordlist.txt ?d?d
+
+# 2.4. Префикс + слово + год
+./hashcat -m 35900 -a 7 addresses.txt ?u wordlist_with_year_suffix.txt
+```
+
+**Уровень 3: Локализация и транслитерация (русскоязычные системы, ~15%)**
+
+```bash
+# 3.1. Транслитерированные слова + год
+./hashcat -m 35900 -a 6 russian_translit_dict.txt ?d?d?d?d
+
+# 3.2. Кириллица → латиница с l33t-заменами + цифры
+./hashcat -m 35900 -a 0 addresses.txt russian_dict.txt -r rules/superrules.rule
+
+# 3.3. Смешанные паттерны (имя латиницей + год)
+./hashcat -m 35900 -a 6 addresses.txt russian_names_translit.txt 19?d?d
+```
+
+**Уровень 4: Compliance-обход (пользователи обходят политику, ~10%)**
+
+```bash
+# 4.1. Слово + несколько спецсимволов подряд
+./hashcat -m 35900 -a 6 addresses.txt wordlist.txt !!
+
+# 4.2. Слово + increment (Password1, Password2, ...)
+./hashcat -m 35900 -a 6 addresses.txt wordlist.txt ?d
+
+# 4.3. Сложные маски (спецсимвол в середине + год)
+./hashcat -m 35900 -a 0 addresses.txt wordlist.txt -r rules/compliance_bypass.rule
+```
+
+#### Оптимизация производительности гибридных атак
+
+**Важно:** Гибридные атаки (-a 6, -a 7) используют существующие ядра и имеют производительность, сопоставимую с -a 0 (словарь) или -a 3 (маска), в зависимости от длины маски.
+
+**Рекомендации по параметрам для 7x RX 580:**
+
+```bash
+# Гибридная атака с короткой маской (1-4 символа)
+./hashcat -m 35900 -a 6 addresses.txt large_wordlist.txt ?d?d?d?d \
+  --backend-devices 1,2,3,4,5,6,7 \
+  -O \
+  -w 4 \
+  -n 512 \
+  --kernel-accel 128
+
+# Гибридная атака с длинной маской (5-8 символов)
+./hashcat -m 35900 -a 6 addresses.txt wordlist.txt ?d?d?d?d?d?d?d?d \
+  --backend-devices 1,2,3,4,5,6,7 \
+  -O \
+  -w 3 \
+  -n 256 \
+  --kernel-accel 64  # Снижаем нагрузку из-за большого keyspace
+```
+
+**Рекомендации для GeForce RTX 3050:**
+
+```bash
+# Короткая маска
+./hashcat -m 35900 -a 6 addresses.txt wordlist.txt ?d?d?d?d \
+  -O \
+  -w 3 \
+  -n 256 \
+  --kernel-accel 64
+
+# Длинная маска
+./hashcat -m 35900 -a 6 addresses.txt wordlist.txt ?a?a?a?a?a \
+  -O \
+  -w 2 \
+  -n 128 \
+  --kernel-accel 32
+```
+
+#### Практический пример: полный аудит b2b-системы
+
+```bash
+#!/bin/bash
+# Скрипт поэтапного аудита корпоративной системы
+
+HASH_FILE="bitcoin_addresses.txt"
+DICT="corporate_wordlist.txt"
+MODE=35900
+
+# Этап 1: Базовый словарь (быстрая проверка)
+echo "[1/7] Straight dictionary attack..."
+./hashcat -m $MODE -a 0 $HASH_FILE $DICT --outfile found.txt --outfile-format 2
+
+# Этап 2: Словарь + правила (compliance паттерны)
+echo "[2/7] Dictionary + superrules..."
+./hashcat -m $MODE -a 0 $HASH_FILE $DICT -r rules/superrules.rule --outfile found.txt --outfile-format 2
+
+# Этап 3: Гибрид — слово + год (2015-2026)
+echo "[3/7] Hybrid word + year..."
+./hashcat -m $MODE -a 6 $HASH_FILE $DICT -1 12 ?d?d?1?d --outfile found.txt --outfile-format 2
+
+# Этап 4: Гибрид — слово + спецсимвол + цифры
+echo "[4/7] Hybrid word + special + digits..."
+./hashcat -m $MODE -a 6 $HASH_FILE $DICT ?s?d?d --outfile found.txt --outfile-format 2
+
+# Этап 5: Гибрид — год + слово
+echo "[5/7] Hybrid year + word..."
+./hashcat -m $MODE -a 7 $HASH_FILE ?d?d?d?d $DICT --outfile found.txt --outfile-format 2
+
+# Этап 6: Комбинатор (два словаря)
+echo "[6/7] Combinator attack..."
+./hashcat -m $MODE -a 1 $HASH_FILE $DICT short_words.txt --outfile found.txt --outfile-format 2
+
+# Этап 7: Брутфорс коротких паролей (если время позволяет)
+echo "[7/7] Brute-force 6-char lowercase..."
+./hashcat -m $MODE -a 3 $HASH_FILE ?l?l?l?l?l?l --outfile found.txt --outfile-format 2
+
+echo "Audit complete. Check found.txt for results."
+```
+
+#### Когда использовать гибридные атаки
+
+**✅ Используйте -a 6/7 когда:**
+- Известны шаблоны паролей организации (аудит показал "слово+год")
+- Система имеет политику сложности пароля (заставляет добавлять цифры/спецсимволы)
+- Словарь качественный, но недостаточно полный
+- Комбинаторная атака (-a 1) слишком медленная из-за больших словарей
+
+**❌ НЕ используйте -a 6/7 когда:**
+- Нет информации о паттернах (лучше начать с -a 0 + правила)
+- Словарь уже содержит варианты с суффиксами
+- Маска слишком длинная (>6 символов) — переходите к -a 3 с инкрементом
+
+#### Ожидаемая производительность гибридных атак
+
+**Режим 35900 (Bitcoin SHA-256):**
+
+| Атака | Словарь | Маска | Комбинаций | Время (7x RX 580 @ 150 MH/s) |
+|-------|---------|-------|------------|------------------------------|
+| -a 6  | 100K слов | ?d?d?d?d | 1 млрд | ~1.8 часа |
+| -a 6  | 1M слов | ?d?d?d?d | 10 млрд | ~18 часов |
+| -a 6  | 100K слов | ?s?d?d | 3.7 млрд | ~7 часов |
+| -a 7  | ?d?d?d?d | 100K слов | 1 млрд | ~1.8 часа |
+
+**Режим 35903 (Ethereum SHA-256):**
+
+Производительность аналогична режиму 35900 (тот же алгоритм хеширования, разная деривация адреса).
+
+**Режим 35902 (Ethereum Keccak-256):**
+
+Производительность может быть на 10-15% выше из-за особенностей Keccak-256.
+
 ---
 
 ## Заключение
