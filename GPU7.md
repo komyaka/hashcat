@@ -886,10 +886,10 @@ cat wordlist1.txt wordlist2.txt wordlist3.txt | ./hashcat -m 35900 bitcoin_addre
 
 ```bash
 # 3.1. Транслитерированные слова + год
-./hashcat -m 35900 -a 6 russian_translit_dict.txt ?d?d?d?d
+./hashcat -m 35900 -a 6 addresses.txt russian_translit_dict.txt ?d?d?d?d
 
 # 3.2. Кириллица → латиница с l33t-заменами + цифры
-./hashcat -m 35900 -a 0 addresses.txt russian_dict.txt -r rules/superrules.rule
+./hashcat -m 35900 -a 0 addresses.txt russian_dict.txt -r rules/best64.rule
 
 # 3.3. Смешанные паттерны (имя латиницей + год)
 ./hashcat -m 35900 -a 6 addresses.txt russian_names_translit.txt 19?d?d
@@ -905,7 +905,7 @@ cat wordlist1.txt wordlist2.txt wordlist3.txt | ./hashcat -m 35900 bitcoin_addre
 ./hashcat -m 35900 -a 6 addresses.txt wordlist.txt ?d
 
 # 4.3. Сложные маски (спецсимвол в середине + год)
-./hashcat -m 35900 -a 0 addresses.txt wordlist.txt -r rules/compliance_bypass.rule
+./hashcat -m 35900 -a 0 addresses.txt wordlist.txt -r rules/dive.rule
 ```
 
 #### Оптимизация производительности гибридных атак
