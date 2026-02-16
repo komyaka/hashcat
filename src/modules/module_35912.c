@@ -11,8 +11,6 @@
 #include "shared.h"
 #include "memory.h"
 
-#include "emu_inc_hash_base58.h"
-
 static const u32   ATTACK_EXEC       = ATTACK_EXEC_INSIDE_KERNEL;
 static const u32   DGST_POS0         = 0;
 static const u32   DGST_POS1         = 1;
@@ -20,16 +18,16 @@ static const u32   DGST_POS2         = 2;
 static const u32   DGST_POS3         = 3;
 static const u32   DGST_SIZE         = DGST_SIZE_4_5;
 static const u32   HASH_CATEGORY     = HASH_CATEGORY_CRYPTOCURRENCY_WALLET;
-static const char *HASH_NAME         = "Bitcoin Private Key (P2PKH, compressed)";
-static const u64   KERN_TYPE         = 35910;
-static const u32   OPTI_TYPE         = 0;
+static const char *HASH_NAME         = "Ethereum Private Key";
+static const u64   KERN_TYPE         = 35912;
+static const u32   OPTI_TYPE         = OPTI_TYPE_NOT_SALTED;
 static const u64   OPTS_TYPE         = OPTS_TYPE_STOCK_MODULE
                                      | OPTS_TYPE_PT_GENERATE_LE
                                      | OPTS_TYPE_PT_HEX
                                      | OPTS_TYPE_PT_ALWAYS_HEXIFY;
 static const u32   SALT_TYPE         = SALT_TYPE_NONE;
 static const char *ST_PASS           = "0000000000000000000000000000000000000000000000000000000000000001";
-static const char *ST_HASH           = "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH";
+static const char *ST_HASH           = "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf";
 
 
 u32         module_attack_exec       (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return ATTACK_EXEC;     }
@@ -49,8 +47,6 @@ u32         module_salt_type         (MAYBE_UNUSED const hashconfig_t *hashconfi
 const char *module_st_hash           (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return ST_HASH;         }
 const char *module_st_pass           (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return ST_PASS;         }
 
-#define PUBKEY_MAXLEN 64
-
 bool module_unstable_warning (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra, MAYBE_UNUSED const hc_device_param_t *device_param)
 {
   if ((device_param->opencl_platform_vendor_id == VENDOR_ID_APPLE) && (device_param->opencl_device_type & CL_DEVICE_TYPE_GPU))
@@ -69,15 +65,7 @@ bool module_unstable_warning (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE
 
 int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED void *digest_buf, MAYBE_UNUSED salt_t *salt, MAYBE_UNUSED void *esalt_buf, MAYBE_UNUSED void *hook_salt_buf, MAYBE_UNUSED hashinfo_t *hash_info, const char *line_buf, MAYBE_UNUSED const int line_len)
 {
-  u8 *digest = (u8 *) digest_buf;
-
-  // P2PKH address type (Base58Check)
-  if ((line_len < 26) || (line_len > 35) || (line_buf[0] != '1'))
-  {
-    return (PARSER_HASH_LENGTH);
-  }
-
-  u8 pubkey[PUBKEY_MAXLEN];
+  u32 *digest = (u32 *) digest_buf;
 
   hc_token_t token;
 
@@ -85,62 +73,41 @@ int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSE
 
   token.token_cnt = 1;
 
-  token.len_min[0] = 26;
-  token.len_max[0] = 35;
-  token.attr[0]    = TOKEN_ATTR_VERIFY_LENGTH
-                   | TOKEN_ATTR_VERIFY_BASE58;
+  // accept 0x prefix
 
-  const int rc_tokenizer = input_tokenizer ((const u8 *) line_buf, line_len, &token);
+  const u8 *input_buf = (const u8 *) line_buf;
+  int input_len = line_len;
+
+  if (line_len == 42 && line_buf[0] == '0' && (line_buf[1] == 'x' || line_buf[1] == 'X'))
+  {
+    input_buf += 2;
+    input_len -= 2;
+  }
+
+  token.len_min[0] = 40;
+  token.len_max[0] = 40;
+  token.attr[0]    = TOKEN_ATTR_VERIFY_LENGTH
+                   | TOKEN_ATTR_VERIFY_HEX;
+
+  const int rc_tokenizer = input_tokenizer (input_buf, input_len, &token);
 
   if (rc_tokenizer != PARSER_OK) return (rc_tokenizer);
 
-  u32 pubkey_len = PUBKEY_MAXLEN;
-
-  bool res = b58dec (pubkey, &pubkey_len, (const u8 *) line_buf, line_len);
-
-  if (res == false) return (PARSER_HASH_LENGTH);
-
-  if (pubkey_len != 25) return (PARSER_HASH_LENGTH);
-
-  u32 l = PUBKEY_MAXLEN - pubkey_len;
-
-  // Check version byte (must be 0 for P2PKH)
-  u8 version = pubkey[l];
-
-  if (version != 0) return (PARSER_HASH_VALUE);
-
-  // Verify Base58Check checksum
-  u32 npubkey[16] = { 0 };
-
-  u8 *npubkey_ptr = (u8 *) npubkey;
-
-  for (u32 i = 0, j = PUBKEY_MAXLEN - pubkey_len; i < pubkey_len; i++, j++)
-  {
-    npubkey_ptr[i] = pubkey[j];
-  }
-
-  if (b58check_25 (npubkey) == false) return (PARSER_HASH_ENCODING);
-
-  // Extract the 20-byte hash160
-  for (u32 i = 0; i < 20; i++)
-  {
-    digest[i] = pubkey[PUBKEY_MAXLEN - pubkey_len + i + 1];
-  }
+  digest[0] = hex_to_u32 (input_buf +  0);
+  digest[1] = hex_to_u32 (input_buf +  8);
+  digest[2] = hex_to_u32 (input_buf + 16);
+  digest[3] = hex_to_u32 (input_buf + 24);
+  digest[4] = hex_to_u32 (input_buf + 32);
 
   return (PARSER_OK);
 }
 
 int module_hash_encode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const void *digest_buf, MAYBE_UNUSED const salt_t *salt, MAYBE_UNUSED const void *esalt_buf, MAYBE_UNUSED const void *hook_salt_buf, MAYBE_UNUSED const hashinfo_t *hash_info, char *line_buf, MAYBE_UNUSED const int line_size)
 {
-  const u8 *digest = (const u8 *) digest_buf;
+  const u32 *digest = (const u32 *) digest_buf;
 
-  // P2PKH address (1...)
-  u8 buf[64] = { 0 };
-  u32 len = 64;
-
-  b58check_enc (buf, &len, 0, digest, 20);
-
-  return snprintf (line_buf, line_size, "%s", buf);
+  return snprintf (line_buf, line_size, "0x%08x%08x%08x%08x%08x",
+    digest[0], digest[1], digest[2], digest[3], digest[4]);
 }
 
 void module_init (module_ctx_t *module_ctx)
