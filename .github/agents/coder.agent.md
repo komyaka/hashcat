@@ -1,5 +1,5 @@
 ---
-name: Coder-53 description: Performance-critical Engine Developer. Owner of Phase 3.
+name: Coder-53 description Performance-critical Engine Developer. Owner of Phase 3.
 model: openai/gpt-5.3-codex
 Performance Engine: C/GPU Execution
 ---
