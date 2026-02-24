@@ -12,15 +12,13 @@
 #include M2S(INCLUDE_PATH/inc_types.h)
 #include M2S(INCLUDE_PATH/inc_platform.cl)
 #include M2S(INCLUDE_PATH/inc_common.cl)
-#include M2S(INCLUDE_PATH/inc_rp.h)
-#include M2S(INCLUDE_PATH/inc_rp.cl)
 #include M2S(INCLUDE_PATH/inc_scalar.cl)
 #include M2S(INCLUDE_PATH/inc_hash_sha256.cl)
 #include M2S(INCLUDE_PATH/inc_hash_ripemd160.cl)
 #include M2S(INCLUDE_PATH/inc_ecc_secp256k1.cl)
 #endif
 
-KERNEL_FQ KERNEL_FA void m35910_mxx (KERN_ATTR_RULES ())
+KERNEL_FQ KERNEL_FA void m35910_mxx (KERN_ATTR_VECTOR ())
 {
   /**
    * modifier
@@ -34,45 +32,53 @@ KERNEL_FQ KERNEL_FA void m35910_mxx (KERN_ATTR_RULES ())
    * base
    */
 
+  const u32 pw_len = pws[gid].pw_len;
+
+  u32x w[64] = { 0 };
+
+  for (u32 i = 0, idx = 0; i < pw_len; i += 4, idx += 1)
+  {
+    w[idx] = pws[gid].i[idx];
+  }
+
   secp256k1_t preG;
 
   set_precomputed_basepoint_g (&preG);
-
-  COPY_PW (pws[gid]);
 
   /**
    * loop
    */
 
-  for (u32 il_pos = 0; il_pos < IL_CNT; il_pos++)
+  u32x w0l = w[0];
+
+  for (u32 il_pos = 0; il_pos < IL_CNT; il_pos += VECT_SIZE)
   {
-    pw_t p = PASTE_PW;
+    const u32x w0r = words_buf_r[il_pos / VECT_SIZE];
 
-    p.pw_len = apply_rules (rules_buf[il_pos].cmds, p.i, p.pw_len);
+    const u32x w0 = w0l | w0r;
 
-    // Private key is the input directly (32 bytes in little-endian word order)
-    // Input is already in hex format and decoded by hashcat
+    w[0] = w0;
 
-    if (p.pw_len != 32) continue; // Private key must be exactly 32 bytes
+    // Private key must be exactly 32 bytes
+    if (pw_len != 32) continue;
 
     u32 prv_key[9];
 
-    prv_key[0] = p.i[0];
-    prv_key[1] = p.i[1];
-    prv_key[2] = p.i[2];
-    prv_key[3] = p.i[3];
-    prv_key[4] = p.i[4];
-    prv_key[5] = p.i[5];
-    prv_key[6] = p.i[6];
-    prv_key[7] = p.i[7];
+    prv_key[0] = (u32) w[0];
+    prv_key[1] = (u32) w[1];
+    prv_key[2] = (u32) w[2];
+    prv_key[3] = (u32) w[3];
+    prv_key[4] = (u32) w[4];
+    prv_key[5] = (u32) w[5];
+    prv_key[6] = (u32) w[6];
+    prv_key[7] = (u32) w[7];
     prv_key[8] = 0;
 
-    // Validate private key range: 0 < prv_key < N (secp256k1 group order)
-    // This is a simplified check - full validation would be more complex
+    // Private key cannot be zero
     if (prv_key[0] == 0 && prv_key[1] == 0 && prv_key[2] == 0 && prv_key[3] == 0 &&
         prv_key[4] == 0 && prv_key[5] == 0 && prv_key[6] == 0 && prv_key[7] == 0)
     {
-      continue; // Private key cannot be zero
+      continue;
     }
 
     // Step 1: EC point multiplication pub_key = G * prv_key
@@ -126,7 +132,7 @@ KERNEL_FQ KERNEL_FA void m35910_mxx (KERN_ATTR_RULES ())
   }
 }
 
-KERNEL_FQ KERNEL_FA void m35910_sxx (KERN_ATTR_RULES ())
+KERNEL_FQ KERNEL_FA void m35910_sxx (KERN_ATTR_VECTOR ())
 {
   /**
    * modifier
@@ -152,34 +158,45 @@ KERNEL_FQ KERNEL_FA void m35910_sxx (KERN_ATTR_RULES ())
    * base
    */
 
+  const u32 pw_len = pws[gid].pw_len;
+
+  u32x w[64] = { 0 };
+
+  for (u32 i = 0, idx = 0; i < pw_len; i += 4, idx += 1)
+  {
+    w[idx] = pws[gid].i[idx];
+  }
+
   secp256k1_t preG;
 
   set_precomputed_basepoint_g (&preG);
-
-  COPY_PW (pws[gid]);
 
   /**
    * loop
    */
 
-  for (u32 il_pos = 0; il_pos < IL_CNT; il_pos++)
+  u32x w0l = w[0];
+
+  for (u32 il_pos = 0; il_pos < IL_CNT; il_pos += VECT_SIZE)
   {
-    pw_t p = PASTE_PW;
+    const u32x w0r = words_buf_r[il_pos / VECT_SIZE];
 
-    p.pw_len = apply_rules (rules_buf[il_pos].cmds, p.i, p.pw_len);
+    const u32x w0 = w0l | w0r;
 
-    if (p.pw_len != 32) continue;
+    w[0] = w0;
+
+    if (pw_len != 32) continue;
 
     u32 prv_key[9];
 
-    prv_key[0] = p.i[0];
-    prv_key[1] = p.i[1];
-    prv_key[2] = p.i[2];
-    prv_key[3] = p.i[3];
-    prv_key[4] = p.i[4];
-    prv_key[5] = p.i[5];
-    prv_key[6] = p.i[6];
-    prv_key[7] = p.i[7];
+    prv_key[0] = (u32) w[0];
+    prv_key[1] = (u32) w[1];
+    prv_key[2] = (u32) w[2];
+    prv_key[3] = (u32) w[3];
+    prv_key[4] = (u32) w[4];
+    prv_key[5] = (u32) w[5];
+    prv_key[6] = (u32) w[6];
+    prv_key[7] = (u32) w[7];
     prv_key[8] = 0;
 
     if (prv_key[0] == 0 && prv_key[1] == 0 && prv_key[2] == 0 && prv_key[3] == 0 &&

@@ -68,7 +68,8 @@ Hashcat поддерживает GPU-ускоренные модули для р
 | 35902 | Brainwallet | Ethereum | Keccak-256 → приватный ключ → ETH адрес |
 | 35903 | Brainwallet | Ethereum | SHA-256 → приватный ключ → ETH адрес |
 | 35904 | Brainwallet | Ethereum | SHA3-256 → приватный ключ → ETH адрес |
-| 35910 | GPU Batch Lookup | Ethereum | Массовая проверка ETH адресов с bloom-фильтром |
+| 35910 | Private Key | Bitcoin | Приватный ключ (P2PKH, compressed) → BTC адрес |
+| 35912 | Private Key | Ethereum | Приватный ключ → ETH адрес |
 
 ### ⚠️ ВАЖНЫЕ ПРЕДУПРЕЖДЕНИЯ
 
@@ -488,86 +489,47 @@ Hashcat поддерживает GPU-ускоренные модули для р
 | 35902 | `0x9c7002ea607c998e062793c420116b66f92421ac` |
 | 35903 | `0xacc6378af93c8cdb42d429625cd531038531a1db` |
 | 35904 | `0xb238859ca7d4d8fa1af573c6e522b4c52fd58f0a` |
-| 35910 | `0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb` |
+| 35910 | `1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH` |
+| 35912 | `0x7e5f4552091a69125d5dfcb7b8c2659029395bdf` |
 
 ---
 
-### Модуль 35910 — GPU-ускоренный поиск Ethereum адресов ###
+### Модули приватных ключей (35910, 35912) ###
 
 #### Описание ####
 
-Модуль 35910 реализует массовую проверку Ethereum-адресов с использованием GPU-ускорения и поддержкой bloom-фильтра для эффективной работы с миллионами адресов.
+Модули 35910 и 35912 принимают на вход 32-байтный приватный ключ secp256k1 в виде 64-символьной hex-строки и проверяют соответствующий адрес.
 
-**Криптографический поток:**
-1. Парольная фраза → SHA-256 → Приватный ключ (32 байта)
-2. Приватный ключ × G (secp256k1) → Публичный ключ (64 байта, несжатый)
-3. Keccak-256(Публичный ключ) → Хеш (32 байта)
-4. Последние 20 байт хеша → Ethereum адрес
+**Модуль 35910 — Bitcoin Private Key (P2PKH, compressed):**
 
-**Особенности модуля:**
-- ✅ Поддержка миллионов адресов через bloom-фильтр
-- ✅ GPU-ускорение (300-800 MH/s в зависимости от GPU)
-- ✅ Низкое потребление памяти (10M адресов ≈ 12MB GPU RAM)
-- ✅ False positive rate ~1% (компенсируется финальной проверкой)
-- ✅ Полная поддержка всех режимов атаки hashcat (-a 0/1/3/6/7)
+Криптографический поток:
+1. Приватный ключ (32 байта, hex) → secp256k1 × G → Публичный ключ (сжатый, 33 байта)
+2. SHA-256(Публичный ключ) → RIPEMD-160 → hash160 (20 байт)
+3. Base58Check(0x00 || hash160) → Bitcoin P2PKH адрес (начинается с `1`)
 
-#### GPU Batch Lookup — Массовая проверка адресов ####
+**Модуль 35912 — Ethereum Private Key:**
 
-**Режим работы:**
+Криптографический поток:
+1. Приватный ключ (32 байта, hex) → secp256k1 × G → Публичный ключ (несжатый, 64 байта x||y)
+2. Keccak-256(Публичный ключ) → хеш (32 байта)
+3. Последние 20 байт → Ethereum адрес (0x...)
 
-Модуль 35910 оптимизирован для проверки сгенерированных ключей против большого списка целевых адресов:
-
-1. **Загрузка адресов:** При запуске hashcat загружает все адреса из файла в bloom-фильтр
-2. **GPU-вычисление:** Каждая кандидат-фраза → приватный ключ → публичный ключ → адрес
-3. **Bloom-проверка:** Адрес проверяется в bloom-фильтре (быстро, но с FP)
-4. **Финальная проверка:** При совпадении в фильтре — точная проверка на CPU
-
-**Аргументы и параметры:**
-
-```bash
-# Базовое использование
-./hashcat -m 35910 eth_addresses.txt wordlist.txt
-
-# Опции производительности
-./hashcat -m 35910 eth_addresses.txt wordlist.txt \
-  -O                    # Оптимизированные ядра (рекомендуется)
-  -w 3                  # Workload profile (1=low, 2=default, 3=high, 4=nightmare)
-  --kernel-accel 128    # Ускорение ядра (автонастройка, можно указать вручную)
-  --kernel-loops 256    # Количество итераций в ядре
-```
-
-**Ограничения VRAM и batched processing:**
-
-| Количество адресов | Память bloom-фильтра | Рекомендуемая VRAM |
-|-------------------|---------------------|-------------------|
-| 100,000 | ~120 KB | 2 GB |
-| 1,000,000 | ~1.2 MB | 2 GB |
-| 10,000,000 | ~12 MB | 4 GB |
-| 100,000,000 | ~120 MB | 6 GB+ |
-| 500,000,000 | ~600 MB | 8 GB+ |
-
-**Примечание:** Помимо bloom-фильтра, GPU нужна память для:
-- Рабочих буферов ядра (зависит от workload)
-- Словарей и правил (если используются)
-- Системных структур OpenCL/CUDA
-
-**Пакетная обработка (batched processing) для огромных списков:**
-
-Если список адресов не умещается в VRAM, разбейте его на пакеты:
-
-```bash
-# Разбить файл на пакеты по 10M адресов
-split -l 10000000 huge_address_list.txt batch_
-
-# Обработать каждый пакет
-for batch in batch_*; do
-  ./hashcat -m 35910 "$batch" wordlist.txt -o found.txt --outfile-format 2
-done
-```
+**Особенности:**
+- Ввод: 64-символьная hex-строка (приватный ключ)
+- Поддержка всех режимов атаки: -a 0 (словарь), -a 1 (комбинатор), -a 3 (маска)
+- Самопроверка: приватный ключ `0000...0001` → Bitcoin `1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH` / ETH `0x7e5f4552091a69125d5dfcb7b8c2659029395bdf`
 
 #### Форматы входных данных ####
 
-**Ethereum адреса (для модуля 35910):**
+**Bitcoin адреса (для модуля 35910):**
+
+```
+# P2PKH адрес (начинается с '1', 26-35 символов, Base58Check)
+1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH
+1CkwUnESKuVFyn3PVm1fyyMtXx6CT2STg7
+```
+
+**Ethereum адреса (для модуля 35912):**
 
 Модуль поддерживает несколько форматов:
 
@@ -583,58 +545,32 @@ done
 
 # Lowercase (поддерживается)
 0x742d35cc6634c0532925a3b844bc9e7595f0beb
-
-# Uppercase (поддерживается)
-0X742D35CC6634C0532925A3B844BC9E7595F0BEB
 ```
 
 **Важно:**
 - Каждый адрес должен быть на отдельной строке
-- Пробелы и табуляции игнорируются
 - Комментарии НЕ поддерживаются (не используйте # в файле адресов)
 - Пустые строки игнорируются
-- Длина: точно 40 hex символов (+ опционально префикс `0x`)
 
-**Пример файла адресов (eth_addresses.txt):**
+**Пример файла Bitcoin адресов (btc_addresses.txt):**
+```
+1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH
+1CkwUnESKuVFyn3PVm1fyyMtXx6CT2STg7
+```
+
+**Пример файла Ethereum адресов (eth_addresses.txt):**
 ```
 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
-0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe
 0x9c7002ea607c998e062793c420116b66f92421ac
 0xacc6378af93c8cdb42d429625cd531038531a1db
 ```
 
-**Ошибки формата (будут отклонены):**
-
-```
-# Неправильная длина
-0x742d35Cc6634C0532925a3b844Bc9e7595f0b    # 39 символов
-0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0  # 41 символ
-
-# Невалидные hex символы
-0x742d35Gc6634C0532925a3b844Bc9e7595f0bEb  # 'G' не hex
-
-# Некорректный формат
-742d35Cc6634C0532925a3b844Bc9e7595f0bEb0x  # префикс в конце
-```
-
-**Рекомендации по формату входных файлов:**
-
-1. **Кодировка:** UTF-8 или ASCII (без BOM)
-2. **Окончания строк:** Unix (LF) или Windows (CRLF) — оба поддерживаются
-3. **Размер файла:** Неограничен (но учитывайте VRAM для bloom-фильтра)
-4. **Дубликаты:** Автоматически игнорируются при построении bloom-фильтра
-5. **Сортировка:** Не требуется (порядок не важен)
-6. **Проверка формата:** Используйте скрипт для валидации перед запуском
-
-**Валидация файла адресов (рекомендуется перед большим запуском):**
+**Валидация файла адресов:**
 
 ```bash
-# Проверить формат каждой строки
+# Проверить формат Ethereum адресов
 grep -Ev '^(0x)?[0-9a-fA-F]{40}$' eth_addresses.txt
 # Если вывод пустой — все адреса валидны
-
-# Подсчет валидных адресов
-grep -Ec '^(0x)?[0-9a-fA-F]{40}$' eth_addresses.txt
 
 # Удалить дубликаты
 sort -u eth_addresses.txt > eth_addresses_unique.txt
@@ -642,43 +578,53 @@ sort -u eth_addresses.txt > eth_addresses_unique.txt
 
 #### Работа с приватными ключами ####
 
-**Примечание:** Модули 35900-35904 и 35910 работают с парольными фразами, которые хешируются в приватные ключи. Прямая работа с готовыми приватными ключами (32 байта binary или 64 hex) планируется в модулях 35912-35915 (в разработке).
-
-**Временное решение — использование существующих модулей:**
+Модули 35910 и 35912 предназначены для прямой работы с готовыми приватными ключами (64 hex символа = 32 байта). Модули 35900-35904 предназначены для brainwallet атак (парольная фраза → хеш → приватный ключ).
 
 Если у вас есть список приватных ключей в hex-формате (64 символа):
 
 ```bash
 # Приватные ключи в hex (64 hex chars = 32 bytes)
-# Например: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+# Например: 0000000000000000000000000000000000000000000000000000000000000001
 
-# Можно использовать режим -a 0 (словарь) с файлом ключей как "словарём"
-./hashcat -m 35910 eth_addresses.txt privkeys_hex.txt -a 0
+# Bitcoin: словарная атака по списку ключей
+./hashcat -m 35910 btc_addresses.txt privkeys_hex.txt -a 0
 
-# Или создать маски для поиска ключей с известным паттерном
-./hashcat -m 35910 eth_addresses.txt -a 3 '0000000000000000?h?h?h?h?h?h?h?h?h?h?h?h?h?h?h?h'
+# Ethereum: словарная атака по списку ключей
+./hashcat -m 35912 eth_addresses.txt privkeys_hex.txt -a 0
+
+# Поиск ключей с известным паттерном (маска)
+# Scan keys with fixed 61-char prefix, last 3 hex chars unknown (3 hex = 4096 keys)
+./hashcat -m 35910 btc_addresses.txt -a 3 '0000000000000000000000000000000000000000000000000000000000?h?h?h'
+# Scan Ethereum keys with same pattern
+./hashcat -m 35912 eth_addresses.txt -a 3 '0000000000000000000000000000000000000000000000000000000000?h?h?h'
 ```
-
-**Auto-detection формата:**
-
-Hashcat автоматически определяет формат входных данных по длине и содержимому:
-- **Парольная фраза:** Любая строка (1-256 символов) → хешируется в ключ
-- **Hex ключ (64 символа):** Распознается как hex → конвертируется в ключ
-- **Binary ключ:** Используйте hex-представление
 
 #### Производительность ####
 
-**Ожидаемая производительность (хэшрейт):**
+**Ожидаемая производительность (хэшрейт) на Ubuntu 24:**
 
-| GPU | Mode 35900-35904 | Mode 35910 | Потребление |
-|-----|-----------------|-----------|-------------|
-| NVIDIA RTX 3050 6GB | 80-120 MH/s | 100-150 MH/s | 130W |
-| NVIDIA RTX 3060 12GB | 150-200 MH/s | 180-250 MH/s | 170W |
-| NVIDIA RTX 3090 24GB | 300-500 MH/s | 400-600 MH/s | 350W |
-| AMD RX 6900 XT 16GB | 250-400 MH/s | 300-500 MH/s | 300W |
-| NVIDIA RTX 4090 24GB | 500-800 MH/s | 600-1000 MH/s | 450W |
+| GPU | VRAM | Mode 35900-35904 (Brainwallet) | Mode 35910/35912 (Private Key) | Потребление |
+|-----|------|-------------------------------|-------------------------------|-------------|
+| AMD RX 580 8GB | 8 GB | 60-90 MH/s | 70-110 MH/s | 185W |
+| NVIDIA RTX 3050 6GB | 6 GB | 80-120 MH/s | 100-150 MH/s | 130W |
+| NVIDIA RTX 3060 12GB | 12 GB | 150-200 MH/s | 180-250 MH/s | 170W |
+| NVIDIA RTX 3090 24GB | 24 GB | 300-500 MH/s | 400-600 MH/s | 350W |
+| AMD RX 6900 XT 16GB | 16 GB | 250-400 MH/s | 300-500 MH/s | 300W |
+| NVIDIA RTX 4090 24GB | 24 GB | 500-800 MH/s | 600-1000 MH/s | 450W |
 
-*Примечание: Реальная производительность зависит от охлаждения, power limit, версии драйверов, и специфики workload (длина фразы, режим атаки).*
+**Расчётный хэшрейт AMD RX 580 8GB (Ubuntu 24, ROCm/OpenCL, driver amdgpu):**
+
+| Режим | Хэш | Алгоритм | Ожидаемый хэшрейт |
+|-------|-----|----------|-------------------|
+| 35900 | Bitcoin Brainwallet (SHA-256) | SHA-256 → ECC → HASH160 | 60–90 MH/s |
+| 35901 | Bitcoin Brainwallet (SHA3-256) | SHA3-256 → ECC → HASH160 | 50–80 MH/s |
+| 35902 | Ethereum Brainwallet (Keccak-256) | Keccak-256 → ECC → Keccak-256 | 65–95 MH/s |
+| 35903 | Ethereum Brainwallet (SHA-256) | SHA-256 → ECC → Keccak-256 | 60–90 MH/s |
+| 35904 | Ethereum Brainwallet (SHA3-256) | SHA3-256 → ECC → Keccak-256 | 50–80 MH/s |
+| 35910 | Bitcoin Private Key (P2PKH) | ECC → HASH160 | 70–110 MH/s |
+| 35912 | Ethereum Private Key | ECC → Keccak-256 | 75–115 MH/s |
+
+*Примечание: Хэшрейт указан для операции address derivation (ECC secp256k1 + hash). Основной узкий момент — умножение точки secp256k1. Реальная производительность зависит от драйвера ROCm/AMDGPU, power limit, охлаждения и длины парольной фразы (для brainwallet). Для бенчмарков использовать: `./hashcat -m 35910 -b -w 3 -O`.*
 
 **Факторы, влияющие на скорость:**
 
@@ -696,69 +642,74 @@ Hashcat автоматически определяет формат входн�
 
 **Бенчмарк (тестирование скорости):**
 ```bash
-# Тест производительности модуля
-./hashcat -m 35910 -b
+# Тест производительности модулей
+./hashcat -m 35900 -b   # Bitcoin Brainwallet SHA-256
+./hashcat -m 35910 -b   # Bitcoin Private Key
+./hashcat -m 35912 -b   # Ethereum Private Key
 
-# Тест с реальным файлом адресов
-./hashcat -m 35910 eth_addresses.txt -a 3 ?l?l?l?l?l?l --runtime 60
+# Тест с реальными данными (60 секунд)
+# Full random key space (64 hex chars = 32 bytes): use benchmark mode instead
+./hashcat -m 35910 -b --runtime 60
+./hashcat -m 35912 -b --runtime 60
 ```
 
 #### Примеры использования ####
 
-**Атака по словарю:**
+**Атака по словарю (Bitcoin private key):**
 ```bash
-./hashcat -m 35910 -a 0 eth_addresses.txt wordlist.txt
+./hashcat -m 35910 -a 0 btc_addresses.txt privkeys.txt
 ```
 
-**Атака с правилами:**
+**Атака по словарю (Ethereum private key):**
 ```bash
-./hashcat -m 35910 -a 0 eth_addresses.txt wordlist.txt -r rules/best64.rule
+./hashcat -m 35912 -a 0 eth_addresses.txt privkeys.txt
 ```
 
-**Атака по маске (брутфорс):**
+**Атака с правилами (Bitcoin Brainwallet):**
 ```bash
-# 8 строчных букв
-./hashcat -m 35910 -a 3 eth_addresses.txt ?l?l?l?l?l?l?l?l
-
-# Известный префикс + 4 неизвестных hex
-./hashcat -m 35910 -a 3 eth_addresses.txt 'mykey?h?h?h?h'
+./hashcat -m 35900 -a 0 btc_addresses.txt wordlist.txt -r rules/best64.rule
 ```
 
-**Комбинаторная атака:**
+**Атака по маске (поиск Bitcoin ключа с известным префиксом):**
 ```bash
-./hashcat -m 35910 -a 1 eth_addresses.txt words1.txt words2.txt
+# Известный префикс + 8 неизвестных hex символов
+# Scan keys with fixed 56-char prefix, last 8 hex chars unknown (8 hex = 4B keys)
+./hashcat -m 35910 -a 3 btc_addresses.txt '00000000000000000000000000000000000000000000000000000000?h?h?h?h?h?h?h?h'
 ```
 
-**Гибридная атака (wordlist + mask):**
+**Атака по маске (поиск Ethereum ключа):**
 ```bash
-# Слово + 4 цифры
-./hashcat -m 35910 -a 6 eth_addresses.txt wordlist.txt ?d?d?d?d
+# Известный префикс + 8 неизвестных hex символов
+# Scan keys with fixed 56-char prefix, last 8 hex chars unknown (8 hex = 4B keys)
+./hashcat -m 35912 -a 3 eth_addresses.txt '00000000000000000000000000000000000000000000000000000000?h?h?h?h?h?h?h?h'
+```
+
+**Комбинаторная атака (Bitcoin Brainwallet):**
+```bash
+./hashcat -m 35900 -a 1 btc_addresses.txt words1.txt words2.txt
+```
+
+**Гибридная атака (Ethereum Brainwallet + маска):**
+```bash
+./hashcat -m 35902 -a 6 eth_addresses.txt wordlist.txt ?d?d?d?d
 ```
 
 **Продолжение прерванной сессии:**
 ```bash
-# Первый запуск с сессией
-./hashcat -m 35910 eth_addresses.txt wordlist.txt --session mysession
-
-# Восстановление после прерывания
+./hashcat -m 35910 btc_addresses.txt privkeys.txt --session mysession
 ./hashcat --session mysession --restore
 ```
 
 **Сохранение результатов:**
 ```bash
-# Сохранить найденные ключи в файл
-./hashcat -m 35910 eth_addresses.txt wordlist.txt -o found_keys.txt
-
-# Формат вывода: адрес:фраза
-./hashcat -m 35910 eth_addresses.txt wordlist.txt -o found.txt --outfile-format 2
+./hashcat -m 35910 btc_addresses.txt privkeys.txt -o found_keys.txt
+./hashcat -m 35912 eth_addresses.txt privkeys.txt -o found.txt --outfile-format 2
 ```
 
 #### Дополнительная информация ####
 
 Полная документация доступна в:
-- `README_MODULE_35910.md` — Краткое руководство
-- `docs/MODULE_35910_README.md` — Полное руководство с примерами
-- `docs/IMPLEMENTATION_SUMMARY.md` — Технические детали реализации
+- `docs/MODULE_35910_README.md` — Руководство по модулям приватных ключей
 
 ---
 

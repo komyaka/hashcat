@@ -12,15 +12,13 @@
 #include M2S(INCLUDE_PATH/inc_types.h)
 #include M2S(INCLUDE_PATH/inc_platform.cl)
 #include M2S(INCLUDE_PATH/inc_common.cl)
-#include M2S(INCLUDE_PATH/inc_rp.h)
-#include M2S(INCLUDE_PATH/inc_rp.cl)
 #include M2S(INCLUDE_PATH/inc_scalar.cl)
 #include M2S(INCLUDE_PATH/inc_hash_sha256.cl)
 #include M2S(INCLUDE_PATH/inc_hash_ripemd160.cl)
 #include M2S(INCLUDE_PATH/inc_ecc_secp256k1.cl)
 #endif
 
-KERNEL_FQ KERNEL_FA void m35910_mxx (KERN_ATTR_RULES ())
+KERNEL_FQ KERNEL_FA void m35910_mxx (KERN_ATTR_BASIC ())
 {
   /**
    * modifier
@@ -34,11 +32,18 @@ KERNEL_FQ KERNEL_FA void m35910_mxx (KERN_ATTR_RULES ())
    * base
    */
 
+  const u32 pw_len = pws[gid].pw_len;
+
+  u32 w[64] = { 0 };
+
+  for (u32 idx = 0; idx < 16; idx++)
+  {
+    w[idx] = pws[gid].i[idx];
+  }
+
   secp256k1_t preG;
 
   set_precomputed_basepoint_g (&preG);
-
-  COPY_PW (pws[gid]);
 
   /**
    * loop
@@ -46,33 +51,44 @@ KERNEL_FQ KERNEL_FA void m35910_mxx (KERN_ATTR_RULES ())
 
   for (u32 il_pos = 0; il_pos < IL_CNT; il_pos++)
   {
-    pw_t p = PASTE_PW;
+    const u32 comb_len = combs_buf[il_pos].pw_len;
 
-    p.pw_len = apply_rules (rules_buf[il_pos].cmds, p.i, p.pw_len);
+    u32 c[64] = { 0 };
 
-    // Private key is the input directly (32 bytes in little-endian word order)
-    // Input is already in hex format and decoded by hashcat
+    for (u32 i = 0; i < 16; i++)
+    {
+      c[i] = combs_buf[il_pos].i[i];
+    }
 
-    if (p.pw_len != 32) continue; // Private key must be exactly 32 bytes
+    switch_buffer_by_offset_1x64_le_S (c, pw_len);
+
+    for (u32 i = 0; i < 16; i++)
+    {
+      c[i] |= w[i];
+    }
+
+    const u32 total_len = pw_len + comb_len;
+
+    // Private key must be exactly 32 bytes
+    if (total_len != 32) continue;
 
     u32 prv_key[9];
 
-    prv_key[0] = p.i[0];
-    prv_key[1] = p.i[1];
-    prv_key[2] = p.i[2];
-    prv_key[3] = p.i[3];
-    prv_key[4] = p.i[4];
-    prv_key[5] = p.i[5];
-    prv_key[6] = p.i[6];
-    prv_key[7] = p.i[7];
+    prv_key[0] = c[0];
+    prv_key[1] = c[1];
+    prv_key[2] = c[2];
+    prv_key[3] = c[3];
+    prv_key[4] = c[4];
+    prv_key[5] = c[5];
+    prv_key[6] = c[6];
+    prv_key[7] = c[7];
     prv_key[8] = 0;
 
-    // Validate private key range: 0 < prv_key < N (secp256k1 group order)
-    // This is a simplified check - full validation would be more complex
+    // Private key cannot be zero
     if (prv_key[0] == 0 && prv_key[1] == 0 && prv_key[2] == 0 && prv_key[3] == 0 &&
         prv_key[4] == 0 && prv_key[5] == 0 && prv_key[6] == 0 && prv_key[7] == 0)
     {
-      continue; // Private key cannot be zero
+      continue;
     }
 
     // Step 1: EC point multiplication pub_key = G * prv_key
@@ -126,7 +142,7 @@ KERNEL_FQ KERNEL_FA void m35910_mxx (KERN_ATTR_RULES ())
   }
 }
 
-KERNEL_FQ KERNEL_FA void m35910_sxx (KERN_ATTR_RULES ())
+KERNEL_FQ KERNEL_FA void m35910_sxx (KERN_ATTR_BASIC ())
 {
   /**
    * modifier
@@ -152,11 +168,18 @@ KERNEL_FQ KERNEL_FA void m35910_sxx (KERN_ATTR_RULES ())
    * base
    */
 
+  const u32 pw_len = pws[gid].pw_len;
+
+  u32 w[64] = { 0 };
+
+  for (u32 idx = 0; idx < 16; idx++)
+  {
+    w[idx] = pws[gid].i[idx];
+  }
+
   secp256k1_t preG;
 
   set_precomputed_basepoint_g (&preG);
-
-  COPY_PW (pws[gid]);
 
   /**
    * loop
@@ -164,22 +187,36 @@ KERNEL_FQ KERNEL_FA void m35910_sxx (KERN_ATTR_RULES ())
 
   for (u32 il_pos = 0; il_pos < IL_CNT; il_pos++)
   {
-    pw_t p = PASTE_PW;
+    const u32 comb_len = combs_buf[il_pos].pw_len;
 
-    p.pw_len = apply_rules (rules_buf[il_pos].cmds, p.i, p.pw_len);
+    u32 c[64] = { 0 };
 
-    if (p.pw_len != 32) continue;
+    for (u32 i = 0; i < 16; i++)
+    {
+      c[i] = combs_buf[il_pos].i[i];
+    }
+
+    switch_buffer_by_offset_1x64_le_S (c, pw_len);
+
+    for (u32 i = 0; i < 16; i++)
+    {
+      c[i] |= w[i];
+    }
+
+    const u32 total_len = pw_len + comb_len;
+
+    if (total_len != 32) continue;
 
     u32 prv_key[9];
 
-    prv_key[0] = p.i[0];
-    prv_key[1] = p.i[1];
-    prv_key[2] = p.i[2];
-    prv_key[3] = p.i[3];
-    prv_key[4] = p.i[4];
-    prv_key[5] = p.i[5];
-    prv_key[6] = p.i[6];
-    prv_key[7] = p.i[7];
+    prv_key[0] = c[0];
+    prv_key[1] = c[1];
+    prv_key[2] = c[2];
+    prv_key[3] = c[3];
+    prv_key[4] = c[4];
+    prv_key[5] = c[5];
+    prv_key[6] = c[6];
+    prv_key[7] = c[7];
     prv_key[8] = 0;
 
     if (prv_key[0] == 0 && prv_key[1] == 0 && prv_key[2] == 0 && prv_key[3] == 0 &&
