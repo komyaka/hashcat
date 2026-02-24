@@ -1,18 +1,6 @@
 /**
  * Author......: See docs/credits.txt
  * License.....: MIT
- * 
- * Module 35910: Ethereum Address Lookup (Bloom Filter)
- * 
- * Fast GPU-accelerated lookup of millions of ETH addresses using bloom filter.
- * Input: ETH addresses (40 hex chars, with or without 0x prefix)
- * Output: Matching private keys
- * 
- * Usage:
- *   hashcat -m 35910 addresses.txt wordlist.txt
- *   hashcat -m 35910 addresses.txt -a 3 ?h?h?h?h?h?h?h?h
- * 
- * Address format: 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb (case-insensitive for input)
  */
 
 #include "common.h"
@@ -22,7 +10,8 @@
 #include "convert.h"
 #include "shared.h"
 #include "memory.h"
-#include "emu_inc_bloom_filter.h"
+
+#include "emu_inc_hash_base58.h"
 
 static const u32   ATTACK_EXEC       = ATTACK_EXEC_INSIDE_KERNEL;
 static const u32   DGST_POS0         = 0;
@@ -31,29 +20,17 @@ static const u32   DGST_POS2         = 2;
 static const u32   DGST_POS3         = 3;
 static const u32   DGST_SIZE         = DGST_SIZE_4_5;
 static const u32   HASH_CATEGORY     = HASH_CATEGORY_CRYPTOCURRENCY_WALLET;
-static const char *HASH_NAME         = "Ethereum Address Lookup (Bloom Filter)";
+static const char *HASH_NAME         = "Bitcoin Private Key (P2PKH, compressed)";
 static const u64   KERN_TYPE         = 35910;
 static const u32   OPTI_TYPE         = 0;
 static const u64   OPTS_TYPE         = OPTS_TYPE_STOCK_MODULE
-                                     | OPTS_TYPE_PT_GENERATE_LE;
-static const u32   SALT_TYPE         = SALT_TYPE_EMBEDDED;
-static const char *ST_PASS           = "hashcat";
-static const char *ST_HASH           = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb";
+                                     | OPTS_TYPE_PT_GENERATE_LE
+                                     | OPTS_TYPE_PT_HEX
+                                     | OPTS_TYPE_PT_ALWAYS_HEXIFY;
+static const u32   SALT_TYPE         = SALT_TYPE_NONE;
+static const char *ST_PASS           = "0000000000000000000000000000000000000000000000000000000000000001";
+static const char *ST_HASH           = "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH";
 
-#define ETH_ADDRESS_LEN 20  // 20 bytes = 40 hex chars
-
-// Esalt structure for bloom filter data
-typedef struct eth_bloom_esalt
-{
-  u32 bloom_bitset_size_bits;  // Size of bloom filter in bits
-  u32 bloom_hash_count;         // Number of hash functions
-  u32 bloom_num_addresses;      // Number of addresses loaded
-  u32 padding;
-  
-  // Bloom filter bitset follows (dynamically sized)
-  // Allocated via module_extra_buffer_size
-  
-} eth_bloom_esalt_t;
 
 u32         module_attack_exec       (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return ATTACK_EXEC;     }
 u32         module_dgst_pos0         (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return DGST_POS0;       }
@@ -66,92 +43,104 @@ const char *module_hash_name         (MAYBE_UNUSED const hashconfig_t *hashconfi
 u64         module_kern_type         (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return KERN_TYPE;       }
 u32         module_opti_type         (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return OPTI_TYPE;       }
 u64         module_opts_type         (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return OPTS_TYPE;       }
+u32         module_pw_min            (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return 64;              }
+u32         module_pw_max            (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return 64;              }
 u32         module_salt_type         (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return SALT_TYPE;       }
 const char *module_st_hash           (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return ST_HASH;         }
 const char *module_st_pass           (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra) { return ST_PASS;         }
 
-u64 module_esalt_size (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra)
+#define PUBKEY_MAXLEN 64
+
+bool module_unstable_warning (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const user_options_t *user_options, MAYBE_UNUSED const user_options_extra_t *user_options_extra, MAYBE_UNUSED const hc_device_param_t *device_param)
 {
-  const u64 esalt_size = (const u64) sizeof (eth_bloom_esalt_t);
-
-  return esalt_size;
-}
-
-// Parse ETH address from input
-int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED void *digest_buf, MAYBE_UNUSED salt_t *salt, MAYBE_UNUSED void *esalt_buf, MAYBE_UNUSED void *hook_salt_buf, MAYBE_UNUSED hashinfo_t *hash_info, const char *line_buf, MAYBE_UNUSED const int line_len)
-{
-  u32 *digest = (u32 *) digest_buf;
-
-  eth_bloom_esalt_t *eth_bloom_esalt = (eth_bloom_esalt_t *) esalt_buf;
-
-  memset (salt, 0, sizeof (salt_t));
-  memset (eth_bloom_esalt, 0, sizeof (eth_bloom_esalt_t));
-
-  // Parse ETH address: 0x + 40 hex chars or just 40 hex chars
-  const char *addr_start = line_buf;
-  int addr_len = line_len;
-
-  // Skip 0x prefix if present
-  if (line_len >= 2 && line_buf[0] == '0' && (line_buf[1] == 'x' || line_buf[1] == 'X'))
+  if ((device_param->opencl_platform_vendor_id == VENDOR_ID_APPLE) && (device_param->opencl_device_type & CL_DEVICE_TYPE_GPU))
   {
-    addr_start += 2;
-    addr_len -= 2;
+    if (device_param->is_metal == true)
+    {
+      if (strncmp (device_param->device_name, "Intel", 5) == 0)
+      {
+        return true;
+      }
+    }
   }
 
-  // ETH address must be exactly 40 hex characters
-  if (addr_len != 40)
+  return false;
+}
+
+int module_hash_decode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED void *digest_buf, MAYBE_UNUSED salt_t *salt, MAYBE_UNUSED void *esalt_buf, MAYBE_UNUSED void *hook_salt_buf, MAYBE_UNUSED hashinfo_t *hash_info, const char *line_buf, MAYBE_UNUSED const int line_len)
+{
+  u8 *digest = (u8 *) digest_buf;
+
+  // P2PKH address type (Base58Check)
+  if ((line_len < 26) || (line_len > 35) || (line_buf[0] != '1'))
   {
     return (PARSER_HASH_LENGTH);
   }
 
-  // Verify all characters are hex
-  for (int i = 0; i < 40; i++)
+  u8 pubkey[PUBKEY_MAXLEN];
+
+  hc_token_t token;
+
+  memset (&token, 0, sizeof (hc_token_t));
+
+  token.token_cnt = 1;
+
+  token.len_min[0] = 26;
+  token.len_max[0] = 35;
+  token.attr[0]    = TOKEN_ATTR_VERIFY_LENGTH
+                   | TOKEN_ATTR_VERIFY_BASE58;
+
+  const int rc_tokenizer = input_tokenizer ((const u8 *) line_buf, line_len, &token);
+
+  if (rc_tokenizer != PARSER_OK) return (rc_tokenizer);
+
+  u32 pubkey_len = PUBKEY_MAXLEN;
+
+  bool res = b58dec (pubkey, &pubkey_len, (const u8 *) line_buf, line_len);
+
+  if (res == false) return (PARSER_HASH_LENGTH);
+
+  if (pubkey_len != 25) return (PARSER_HASH_LENGTH);
+
+  u32 l = PUBKEY_MAXLEN - pubkey_len;
+
+  // Check version byte (must be 0 for P2PKH)
+  u8 version = pubkey[l];
+
+  if (version != 0) return (PARSER_HASH_VALUE);
+
+  // Verify Base58Check checksum
+  u32 npubkey[16] = { 0 };
+
+  u8 *npubkey_ptr = (u8 *) npubkey;
+
+  for (u32 i = 0, j = PUBKEY_MAXLEN - pubkey_len; i < pubkey_len; i++, j++)
   {
-    const char c = addr_start[i];
-    if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
-    {
-      return (PARSER_HASH_ENCODING);
-    }
+    npubkey_ptr[i] = pubkey[j];
   }
 
-  // Convert hex string to 20 bytes (5x u32)
-  u8 addr_bytes[ETH_ADDRESS_LEN];
-  
-  for (int i = 0; i < ETH_ADDRESS_LEN; i++)
+  if (b58check_25 (npubkey) == false) return (PARSER_HASH_ENCODING);
+
+  // Extract the 20-byte hash160
+  for (u32 i = 0; i < 20; i++)
   {
-    const u8 hi = hex_to_u8 ((const u8 *) &addr_start[i * 2 + 0]);
-    const u8 lo = hex_to_u8 ((const u8 *) &addr_start[i * 2 + 1]);
-    
-    addr_bytes[i] = (hi << 4) | lo;
+    digest[i] = pubkey[PUBKEY_MAXLEN - pubkey_len + i + 1];
   }
-
-  // Store address in digest (20 bytes = 5x u32, little-endian)
-  memcpy (digest, addr_bytes, ETH_ADDRESS_LEN);
-
-  // Set salt to mark this as single address mode (not bloom filter batch)
-  salt->salt_len = 0;
 
   return (PARSER_OK);
 }
 
 int module_hash_encode (MAYBE_UNUSED const hashconfig_t *hashconfig, MAYBE_UNUSED const void *digest_buf, MAYBE_UNUSED const salt_t *salt, MAYBE_UNUSED const void *esalt_buf, MAYBE_UNUSED const void *hook_salt_buf, MAYBE_UNUSED const hashinfo_t *hash_info, char *line_buf, MAYBE_UNUSED const int line_size)
 {
-  const u32 *digest = (const u32 *) digest_buf;
+  const u8 *digest = (const u8 *) digest_buf;
 
-  // Convert digest back to ETH address format (0x + 40 hex chars)
-  const u8 *addr_bytes = (const u8 *) digest;
-  
-  line_buf[0] = '0';
-  line_buf[1] = 'x';
-  
-  for (int i = 0; i < ETH_ADDRESS_LEN; i++)
-  {
-    u8_to_hex (addr_bytes[i], (u8 *) &line_buf[2 + i * 2]);
-  }
-  
-  line_buf[42] = 0;
+  // P2PKH address (1...)
+  u8 buf[64] = { 0 };
+  u32 len = 64;
 
-  return 42;
+  b58check_enc (buf, &len, 0, digest, 20);
+
+  return snprintf (line_buf, line_size, "%s", buf);
 }
 
 void module_init (module_ctx_t *module_ctx)
@@ -165,6 +154,8 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_benchmark_mask           = MODULE_DEFAULT;
   module_ctx->module_benchmark_charset        = MODULE_DEFAULT;
   module_ctx->module_benchmark_salt           = MODULE_DEFAULT;
+  module_ctx->module_bridge_name              = MODULE_DEFAULT;
+  module_ctx->module_bridge_type              = MODULE_DEFAULT;
   module_ctx->module_build_plain_postprocess  = MODULE_DEFAULT;
   module_ctx->module_deep_comp_kernel         = MODULE_DEFAULT;
   module_ctx->module_deprecated_notice        = MODULE_DEFAULT;
@@ -174,7 +165,7 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_dgst_pos3                = module_dgst_pos3;
   module_ctx->module_dgst_size                = module_dgst_size;
   module_ctx->module_dictstat_disable         = MODULE_DEFAULT;
-  module_ctx->module_esalt_size               = module_esalt_size;
+  module_ctx->module_esalt_size               = MODULE_DEFAULT;
   module_ctx->module_extra_buffer_size        = MODULE_DEFAULT;
   module_ctx->module_extra_tmp_size           = MODULE_DEFAULT;
   module_ctx->module_extra_tuningdb_block     = MODULE_DEFAULT;
@@ -221,8 +212,8 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_potfile_disable          = MODULE_DEFAULT;
   module_ctx->module_potfile_keep_all_hashes  = MODULE_DEFAULT;
   module_ctx->module_pwdump_column            = MODULE_DEFAULT;
-  module_ctx->module_pw_max                   = MODULE_DEFAULT;
-  module_ctx->module_pw_min                   = MODULE_DEFAULT;
+  module_ctx->module_pw_max                   = module_pw_max;
+  module_ctx->module_pw_min                   = module_pw_min;
   module_ctx->module_salt_max                 = MODULE_DEFAULT;
   module_ctx->module_salt_min                 = MODULE_DEFAULT;
   module_ctx->module_salt_type                = module_salt_type;
@@ -230,6 +221,6 @@ void module_init (module_ctx_t *module_ctx)
   module_ctx->module_st_hash                  = module_st_hash;
   module_ctx->module_st_pass                  = module_st_pass;
   module_ctx->module_tmp_size                 = MODULE_DEFAULT;
-  module_ctx->module_unstable_warning         = MODULE_DEFAULT;
+  module_ctx->module_unstable_warning         = module_unstable_warning;
   module_ctx->module_warmup_disable           = MODULE_DEFAULT;
 }
