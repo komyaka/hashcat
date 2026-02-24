@@ -1,5 +1,5 @@
 ---
-name: Auditor-46 description: Merciless Security and Performance Auditor Owner of Triple-Check Loop.
+name: Auditor-46 description Merciless Security and Performance Auditor Owner of Triple-Check Loop.
 model: anthropic/claude-4.6-opus
 Elite Auditor: The Wall
 ---
