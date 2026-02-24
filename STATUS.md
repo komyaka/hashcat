@@ -870,7 +870,6 @@ source code.
 - The unrolled `keccak_transform_S` with `Rho_Pi_Imm` and immediate rotation constants is
   mathematically equivalent to the looped version with `keccakf_piln`/`keccakf_rotc` arrays; the
   (j, k) pairs are the same constants in the same sequence.
-- [ ] Extract DECLSPEC helpers for pub_key construction and HASH160 (ISSUE-03)
 
 ---
 
