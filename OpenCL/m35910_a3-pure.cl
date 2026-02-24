@@ -3,7 +3,7 @@
  * License.....: MIT
  */
 
-#define NEW_SIMD_CODE
+//#define NEW_SIMD_CODE
 
 #define SECP256K1_TMPS_TYPE PRIVATE_AS
 
@@ -12,244 +12,222 @@
 #include M2S(INCLUDE_PATH/inc_types.h)
 #include M2S(INCLUDE_PATH/inc_platform.cl)
 #include M2S(INCLUDE_PATH/inc_common.cl)
-#include M2S(INCLUDE_PATH/inc_simd.cl)
+#include M2S(INCLUDE_PATH/inc_rp.h)
+#include M2S(INCLUDE_PATH/inc_rp.cl)
+#include M2S(INCLUDE_PATH/inc_scalar.cl)
 #include M2S(INCLUDE_PATH/inc_hash_sha256.cl)
-#include M2S(INCLUDE_PATH/inc_hash_keccak.cl)
+#include M2S(INCLUDE_PATH/inc_hash_ripemd160.cl)
 #include M2S(INCLUDE_PATH/inc_ecc_secp256k1.cl)
 #endif
 
-KERNEL_FQ void m35910_mxx (KERN_ATTR_VECTOR ())
+KERNEL_FQ KERNEL_FA void m35910_mxx (KERN_ATTR_RULES ())
 {
+  /**
+   * modifier
+   */
+
   const u64 gid = get_global_id (0);
 
   if (gid >= GID_CNT) return;
 
+  /**
+   * base
+   */
+
   secp256k1_t preG;
+
   set_precomputed_basepoint_g (&preG);
 
-  u32 w[16];
-  w[0]  = pws[gid].i[0];
-  w[1]  = pws[gid].i[1];
-  w[2]  = pws[gid].i[2];
-  w[3]  = pws[gid].i[3];
-  w[4]  = pws[gid].i[4];
-  w[5]  = pws[gid].i[5];
-  w[6]  = pws[gid].i[6];
-  w[7]  = pws[gid].i[7];
-  w[8]  = 0;
-  w[9]  = 0;
-  w[10] = 0;
-  w[11] = 0;
-  w[12] = 0;
-  w[13] = 0;
-  w[14] = 0;
-  w[15] = 0;
+  COPY_PW (pws[gid]);
 
-  const u32 pw_len = pws[gid].pw_len;
+  /**
+   * loop
+   */
 
   for (u32 il_pos = 0; il_pos < IL_CNT; il_pos++)
   {
-    u32 w_final[16];
-    w_final[0]  = w[0];
-    w_final[1]  = w[1];
-    w_final[2]  = w[2];
-    w_final[3]  = w[3];
-    w_final[4]  = w[4];
-    w_final[5]  = w[5];
-    w_final[6]  = w[6];
-    w_final[7]  = w[7];
-    w_final[8]  = 0;
-    w_final[9]  = 0;
-    w_final[10] = 0;
-    w_final[11] = 0;
-    w_final[12] = 0;
-    w_final[13] = 0;
-    w_final[14] = 0;
-    w_final[15] = 0;
+    pw_t p = PASTE_PW;
 
-    const u32 pw_len_final = apply_rules_vect (rules_buf, il_pos, w_final, pw_len);
+    p.pw_len = apply_rules (rules_buf[il_pos].cmds, p.i, p.pw_len);
 
-    sha256_ctx_t sha_ctx;
-    sha256_init (&sha_ctx);
-    sha256_update_swap (&sha_ctx, w_final, pw_len_final);
-    sha256_final (&sha_ctx);
+    // Private key is the input directly (32 bytes in little-endian word order)
+    // Input is already in hex format and decoded by hashcat
+
+    if (p.pw_len != 32) continue; // Private key must be exactly 32 bytes
 
     u32 prv_key[9];
-    prv_key[0] = sha_ctx.h[7];
-    prv_key[1] = sha_ctx.h[6];
-    prv_key[2] = sha_ctx.h[5];
-    prv_key[3] = sha_ctx.h[4];
-    prv_key[4] = sha_ctx.h[3];
-    prv_key[5] = sha_ctx.h[2];
-    prv_key[6] = sha_ctx.h[1];
-    prv_key[7] = sha_ctx.h[0];
+
+    prv_key[0] = p.i[0];
+    prv_key[1] = p.i[1];
+    prv_key[2] = p.i[2];
+    prv_key[3] = p.i[3];
+    prv_key[4] = p.i[4];
+    prv_key[5] = p.i[5];
+    prv_key[6] = p.i[6];
+    prv_key[7] = p.i[7];
     prv_key[8] = 0;
 
-    u32 x[8], y[8];
+    // Validate private key range: 0 < prv_key < N (secp256k1 group order)
+    // This is a simplified check - full validation would be more complex
+    if (prv_key[0] == 0 && prv_key[1] == 0 && prv_key[2] == 0 && prv_key[3] == 0 &&
+        prv_key[4] == 0 && prv_key[5] == 0 && prv_key[6] == 0 && prv_key[7] == 0)
+    {
+      continue; // Private key cannot be zero
+    }
+
+    // Step 1: EC point multiplication pub_key = G * prv_key
+
+    u32 x[8];
+    u32 y[8];
+
     point_mul_xy (x, y, prv_key, &preG);
 
-    u32 pub_key[16];
-    pub_key[0]  = hc_swap32_S (x[7]);
-    pub_key[1]  = hc_swap32_S (x[6]);
-    pub_key[2]  = hc_swap32_S (x[5]);
-    pub_key[3]  = hc_swap32_S (x[4]);
-    pub_key[4]  = hc_swap32_S (x[3]);
-    pub_key[5]  = hc_swap32_S (x[2]);
-    pub_key[6]  = hc_swap32_S (x[1]);
-    pub_key[7]  = hc_swap32_S (x[0]);
-    pub_key[8]  = hc_swap32_S (y[7]);
-    pub_key[9]  = hc_swap32_S (y[6]);
-    pub_key[10] = hc_swap32_S (y[5]);
-    pub_key[11] = hc_swap32_S (y[4]);
-    pub_key[12] = hc_swap32_S (y[3]);
-    pub_key[13] = hc_swap32_S (y[2]);
-    pub_key[14] = hc_swap32_S (y[1]);
-    pub_key[15] = hc_swap32_S (y[0]);
+    // Step 2: compressed public key (33 bytes)
 
-    u32 keccak_st[25] = { 0 };
-    for (u32 i = 0; i < 16; i++) keccak_st[i] = hc_swap32_S (pub_key[i]);
+    u32 pub_key[16] = { 0 };
 
-    u64 st64[25] = { 0 };
-    for (u32 i = 0; i < 8; i++)
-      st64[i] = hl32_to_64_S (keccak_st[i * 2 + 1], keccak_st[i * 2 + 0]);
+    const u32 type = 0x02 | (y[0] & 1);
 
-    keccak_transform_S (st64, 64, 200, 0x01, 256);
+    pub_key[8] =               (x[0] << 24);
+    pub_key[7] = (x[0] >> 8) | (x[1] << 24);
+    pub_key[6] = (x[1] >> 8) | (x[2] << 24);
+    pub_key[5] = (x[2] >> 8) | (x[3] << 24);
+    pub_key[4] = (x[3] >> 8) | (x[4] << 24);
+    pub_key[3] = (x[4] >> 8) | (x[5] << 24);
+    pub_key[2] = (x[5] >> 8) | (x[6] << 24);
+    pub_key[1] = (x[6] >> 8) | (x[7] << 24);
+    pub_key[0] = (x[7] >> 8) | (type << 24);
 
-    u32 hash32[8];
-    hash32[0] = l32_from_64_S (st64[0]);
-    hash32[1] = h32_from_64_S (st64[0]);
-    hash32[2] = l32_from_64_S (st64[1]);
-    hash32[3] = h32_from_64_S (st64[1]);
-    hash32[4] = l32_from_64_S (st64[2]);
-    hash32[5] = h32_from_64_S (st64[2]);
-    hash32[6] = l32_from_64_S (st64[3]);
-    hash32[7] = h32_from_64_S (st64[3]);
+    // Step 3: HASH160 = RIPEMD-160(SHA-256(pub_key))
 
-    const u32 r0 = hash32[3];
-    const u32 r1 = hash32[4];
-    const u32 r2 = hash32[5];
-    const u32 r3 = hash32[6];
+    sha256_ctx_t ctx;
+
+    sha256_init   (&ctx);
+    sha256_update (&ctx, pub_key, 33);
+    sha256_final  (&ctx);
+
+    u32 tmp[16] = { 0 };
+
+    for (u32 i = 0; i < 8; i++) tmp[i] = ctx.h[i];
+    for (u32 i = 8; i < 16; i++) tmp[i] = 0;
+
+    ripemd160_ctx_t rctx;
+
+    ripemd160_init        (&rctx);
+    ripemd160_update_swap (&rctx, tmp, 32);
+    ripemd160_final       (&rctx);
+
+    const u32 r0 = rctx.h[0];
+    const u32 r1 = rctx.h[1];
+    const u32 r2 = rctx.h[2];
+    const u32 r3 = rctx.h[3];
 
     COMPARE_M_SCALAR (r0, r1, r2, r3);
   }
 }
 
-KERNEL_FQ void m35910_sxx (KERN_ATTR_VECTOR ())
+KERNEL_FQ KERNEL_FA void m35910_sxx (KERN_ATTR_RULES ())
 {
+  /**
+   * modifier
+   */
+
   const u64 gid = get_global_id (0);
+
   if (gid >= GID_CNT) return;
 
+  /**
+   * digest
+   */
+
+  const u32 search[4] =
+  {
+    digests_buf[DIGESTS_OFFSET_HOST].digest_buf[DGST_R0],
+    digests_buf[DIGESTS_OFFSET_HOST].digest_buf[DGST_R1],
+    digests_buf[DIGESTS_OFFSET_HOST].digest_buf[DGST_R2],
+    digests_buf[DIGESTS_OFFSET_HOST].digest_buf[DGST_R3]
+  };
+
+  /**
+   * base
+   */
+
   secp256k1_t preG;
+
   set_precomputed_basepoint_g (&preG);
 
-  u32 s[4];
-  s[0] = digests_buf[DIGESTS_OFFSET_HOST].digest_buf[DGST_R0];
-  s[1] = digests_buf[DIGESTS_OFFSET_HOST].digest_buf[DGST_R1];
-  s[2] = digests_buf[DIGESTS_OFFSET_HOST].digest_buf[DGST_R2];
-  s[3] = digests_buf[DIGESTS_OFFSET_HOST].digest_buf[DGST_R3];
+  COPY_PW (pws[gid]);
 
-  u32 w[16];
-  w[0]  = pws[gid].i[0];
-  w[1]  = pws[gid].i[1];
-  w[2]  = pws[gid].i[2];
-  w[3]  = pws[gid].i[3];
-  w[4]  = pws[gid].i[4];
-  w[5]  = pws[gid].i[5];
-  w[6]  = pws[gid].i[6];
-  w[7]  = pws[gid].i[7];
-  w[8]  = 0;
-  w[9]  = 0;
-  w[10] = 0;
-  w[11] = 0;
-  w[12] = 0;
-  w[13] = 0;
-  w[14] = 0;
-  w[15] = 0;
-
-  const u32 pw_len = pws[gid].pw_len;
+  /**
+   * loop
+   */
 
   for (u32 il_pos = 0; il_pos < IL_CNT; il_pos++)
   {
-    u32 w_final[16];
-    w_final[0]  = w[0];
-    w_final[1]  = w[1];
-    w_final[2]  = w[2];
-    w_final[3]  = w[3];
-    w_final[4]  = w[4];
-    w_final[5]  = w[5];
-    w_final[6]  = w[6];
-    w_final[7]  = w[7];
-    w_final[8]  = 0;
-    w_final[9]  = 0;
-    w_final[10] = 0;
-    w_final[11] = 0;
-    w_final[12] = 0;
-    w_final[13] = 0;
-    w_final[14] = 0;
-    w_final[15] = 0;
+    pw_t p = PASTE_PW;
 
-    const u32 pw_len_final = apply_rules_vect (rules_buf, il_pos, w_final, pw_len);
+    p.pw_len = apply_rules (rules_buf[il_pos].cmds, p.i, p.pw_len);
 
-    sha256_ctx_t sha_ctx;
-    sha256_init (&sha_ctx);
-    sha256_update_swap (&sha_ctx, w_final, pw_len_final);
-    sha256_final (&sha_ctx);
+    if (p.pw_len != 32) continue;
 
     u32 prv_key[9];
-    prv_key[0] = sha_ctx.h[7];
-    prv_key[1] = sha_ctx.h[6];
-    prv_key[2] = sha_ctx.h[5];
-    prv_key[3] = sha_ctx.h[4];
-    prv_key[4] = sha_ctx.h[3];
-    prv_key[5] = sha_ctx.h[2];
-    prv_key[6] = sha_ctx.h[1];
-    prv_key[7] = sha_ctx.h[0];
+
+    prv_key[0] = p.i[0];
+    prv_key[1] = p.i[1];
+    prv_key[2] = p.i[2];
+    prv_key[3] = p.i[3];
+    prv_key[4] = p.i[4];
+    prv_key[5] = p.i[5];
+    prv_key[6] = p.i[6];
+    prv_key[7] = p.i[7];
     prv_key[8] = 0;
 
-    u32 x[8], y[8];
+    if (prv_key[0] == 0 && prv_key[1] == 0 && prv_key[2] == 0 && prv_key[3] == 0 &&
+        prv_key[4] == 0 && prv_key[5] == 0 && prv_key[6] == 0 && prv_key[7] == 0)
+    {
+      continue;
+    }
+
+    u32 x[8];
+    u32 y[8];
+
     point_mul_xy (x, y, prv_key, &preG);
 
-    u32 pub_key[16];
-    pub_key[0]  = hc_swap32_S (x[7]);
-    pub_key[1]  = hc_swap32_S (x[6]);
-    pub_key[2]  = hc_swap32_S (x[5]);
-    pub_key[3]  = hc_swap32_S (x[4]);
-    pub_key[4]  = hc_swap32_S (x[3]);
-    pub_key[5]  = hc_swap32_S (x[2]);
-    pub_key[6]  = hc_swap32_S (x[1]);
-    pub_key[7]  = hc_swap32_S (x[0]);
-    pub_key[8]  = hc_swap32_S (y[7]);
-    pub_key[9]  = hc_swap32_S (y[6]);
-    pub_key[10] = hc_swap32_S (y[5]);
-    pub_key[11] = hc_swap32_S (y[4]);
-    pub_key[12] = hc_swap32_S (y[3]);
-    pub_key[13] = hc_swap32_S (y[2]);
-    pub_key[14] = hc_swap32_S (y[1]);
-    pub_key[15] = hc_swap32_S (y[0]);
+    u32 pub_key[16] = { 0 };
 
-    u32 keccak_st[25] = { 0 };
-    for (u32 i = 0; i < 16; i++) keccak_st[i] = hc_swap32_S (pub_key[i]);
+    const u32 type = 0x02 | (y[0] & 1);
 
-    u64 st64[25] = { 0 };
-    for (u32 i = 0; i < 8; i++)
-      st64[i] = hl32_to_64_S (keccak_st[i * 2 + 1], keccak_st[i * 2 + 0]);
+    pub_key[8] =               (x[0] << 24);
+    pub_key[7] = (x[0] >> 8) | (x[1] << 24);
+    pub_key[6] = (x[1] >> 8) | (x[2] << 24);
+    pub_key[5] = (x[2] >> 8) | (x[3] << 24);
+    pub_key[4] = (x[3] >> 8) | (x[4] << 24);
+    pub_key[3] = (x[4] >> 8) | (x[5] << 24);
+    pub_key[2] = (x[5] >> 8) | (x[6] << 24);
+    pub_key[1] = (x[6] >> 8) | (x[7] << 24);
+    pub_key[0] = (x[7] >> 8) | (type << 24);
 
-    keccak_transform_S (st64, 64, 200, 0x01, 256);
+    sha256_ctx_t ctx;
 
-    u32 hash32[8];
-    hash32[0] = l32_from_64_S (st64[0]);
-    hash32[1] = h32_from_64_S (st64[0]);
-    hash32[2] = l32_from_64_S (st64[1]);
-    hash32[3] = h32_from_64_S (st64[1]);
-    hash32[4] = l32_from_64_S (st64[2]);
-    hash32[5] = h32_from_64_S (st64[2]);
-    hash32[6] = l32_from_64_S (st64[3]);
-    hash32[7] = h32_from_64_S (st64[3]);
+    sha256_init   (&ctx);
+    sha256_update (&ctx, pub_key, 33);
+    sha256_final  (&ctx);
 
-    const u32 r0 = hash32[3];
-    const u32 r1 = hash32[4];
-    const u32 r2 = hash32[5];
-    const u32 r3 = hash32[6];
+    u32 tmp[16] = { 0 };
+
+    for (u32 i = 0; i < 8; i++) tmp[i] = ctx.h[i];
+    for (u32 i = 8; i < 16; i++) tmp[i] = 0;
+
+    ripemd160_ctx_t rctx;
+
+    ripemd160_init        (&rctx);
+    ripemd160_update_swap (&rctx, tmp, 32);
+    ripemd160_final       (&rctx);
+
+    const u32 r0 = rctx.h[0];
+    const u32 r1 = rctx.h[1];
+    const u32 r2 = rctx.h[2];
+    const u32 r3 = rctx.h[3];
 
     COMPARE_S_SCALAR (r0, r1, r2, r3);
   }
