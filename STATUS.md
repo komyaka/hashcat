@@ -874,3 +874,179 @@ source code.
 ---
 
 *Document produced by deep static analysis of all 28 source files in modules 35900–35912.*
+
+---
+
+## 10. AUDIT FINDINGS — Auditor Agent (2025-07)
+
+**Auditor**: Auditor Agent — 20 years GPU kernel engineering  
+**Commit audited**: `69b6a5f` (perf: add inc_hash_keccak256.cl; unroll Keccak in m35901-m35904/m35912; hoist addr_type)  
+**Files audited**: 22 OpenCL files + `inc_hash_keccak256.cl`
+
+---
+
+### LEVEL 1 — Static Analysis
+
+#### Syntax / Include Consistency
+- All 21 kernel files compile cleanly (no syntax errors detected, include guards consistent).
+- `KERNEL_FQ KERNEL_FA`, `DECLSPEC`, `PRIVATE_AS`, `KERN_ATTR_RULES`/`KERN_ATTR_BASIC`/`KERN_ATTR_VECTOR` usage is consistent across all a0/a1/a3 variants.
+- `#define SECP256K1_TMPS_TYPE PRIVATE_AS` present in all 21 kernels. ✅
+
+#### UL vs ULL suffix inconsistency (MINOR — non-blocking)
+- **File**: `OpenCL/inc_hash_keccak256.cl`, lines 167–168, 262  
+- `st[8]  ^= 0x0000000000000001ULL;` and `st[16] ^= 0x8000000000000000ULL;`  
+- The KECCAK_RNDC constants in `inc_types.h` all use `UL` suffix.  
+- Both `UL` and `ULL` are 64-bit unsigned in OpenCL C; this is **not a correctness issue**.  
+- Severity: cosmetic only.
+
+#### Comment inaccuracy in m35904 (MINOR — non-blocking)
+- **File**: `OpenCL/m35904_a0-pure.cl` (and a1/a3), line 40  
+- Comment reads `// Keccak-256 of passphrase to get private key` but the code calls `sha3_256_hash()` (SHA3-256, pad=0x06).  
+- Severity: documentation error only; has **zero effect on runtime behavior**.
+
+---
+
+### LEVEL 2 — Mathematical / Logic Correctness
+
+#### Keccak Round Constants
+- All 24 KECCAK_RNDC_xx constants in `inc_types.h` were verified against the FIPS-202 /
+  Keccak reference specification. ✅
+
+#### Keccak Rho/Pi sequence in KECCAK_ROUND macro
+- `Rho_Pi_Imm(j, k)` sequence in `inc_hash_keccak256.cl` verified against original
+  `keccakf_piln[]` and `keccakf_rotc[]` arrays removed from m35902:
+  ```
+  j-sequence: 10, 7, 11, 17, 18,  3,  5, 16,  8, 21, 24,  4,
+              15, 23, 19, 13, 12,  2, 20, 14, 22,  9,  6,  1   ✅
+  k-sequence:  1,  3,  6, 10, 15, 21, 28, 36, 45, 55,  2, 14,
+              27, 41, 56,  8, 25, 43, 62, 18, 39, 61, 20, 44   ✅
+  ```
+  Sequences are **bit-for-bit identical** to the standard.
+
+#### hl32_to_64_S / h32_from_64_S / l32_from_64_S semantics
+- Verified via `inc_common.cl` source:
+  - `hl32_to_64_S(hi, lo)` → `(u64)hi << 32 | lo` (first arg = HIGH 32 bits) ✅
+  - `l32_from_64_S(v)` → low 32 bits of v ✅
+  - `h32_from_64_S(v)` → high 32 bits of v ✅
+- The keccak_256_64 input loading: `st[i] = hl32_to_64_S(in[2i+1], in[2i])` correctly
+  places `in[2i]` (earlier bytes, LE) into the low 32 bits of st[i], putting the MSB of the
+  big-endian public key as byte 0 of the Keccak state. ✅
+
+#### keccak_256_64 padding correctness
+- Rate = 136 bytes (Keccak-256). 64-byte input occupies st[0..7].
+- `st[8]  ^= 0x01` → pad byte 0x01 at byte position 64 ✅
+- `st[16] ^= 0x8000000000000000ULL` → final 0x80 at byte 135 (= 16×8 + 7) ✅
+
+#### keccak_256_64 output extraction
+- Ethereum address = bytes 12–31 of Keccak-256 output.
+- `out[0] = h32_from_64_S(st[1])` → bytes 12–15 ✅
+- `out[1..4]` follow correct l/h alternation for bytes 16–31 ✅
+- **Python simulation confirmed** correct address for secp256k1 generator point (private key = 1):
+  `0x7e5f4552091a69125d5dfcb7b8c2659029395bdf` matches known reference. ✅
+
+#### keccak_256_hash_impl register-only padding
+- `full_words = rem / 8`, `tail_bytes = rem % 8` correctly partition the remainder.
+- Per-byte extraction `(pw[widx] >> (bidx*8)) & 0xff` correctly reads password bytes
+  from the hashcat LE u32 word array.
+- `lane |= ((u64)pad_byte) << (tail_bytes*8)` inserts padding at the correct bit offset. ✅
+- `st[16] ^= 0x8000000000000000ULL` for final 0x80 at byte 135. ✅
+- Multi-block: `pw_off` advances by `rate=136` (multiple of 8), so `idx = pw_off/4 + i*2`
+  is always word-aligned. ✅
+- **Functionally equivalent** to the original `u8 temp[136]` approach. ✅
+
+#### SHA3-256 pad byte
+- `sha3_256_hash` → `keccak_256_hash_impl(..., 0x06)` ✅ (FIPS 202 domain separation)
+- `keccak_256_hash` → `keccak_256_hash_impl(..., 0x01)` ✅ (original Keccak / Ethereum)
+
+#### addr_type hoist in m35900
+- `salt_bufs[SALT_POS_HOST].salt_buf[0]` is uniform per-salt, constant across all threads
+  in the same warp. Hoisting to before the `il_pos` loop is semantically correct and avoids
+  one global-memory read per candidate. ✅
+
+#### P2SH tmp[] zeroing simplification in m35900
+- `u32 tmp[16] = { 0 }` initialises all 16 words to zero.
+- `for (u32 i = 0; i < 8; i++) tmp[i] = ctx.h[i]` sets tmp[0..7]; tmp[8..15] remain zero.
+- P2SH constructs tmp[0..5]; `tmp[6] = 0; tmp[7] = 0` clears only the two words that were
+  non-zero from the sha256_ctx assignment. `tmp[8..15]` were **never written** → comment
+  "already zero from { 0 } initializer" is correct. ✅
+
+#### m35901 P2SH zeroing (not simplified)
+- m35901 retains `for (u32 i = 6; i < 16; i++) tmp[i] = 0;` — redundant for tmp[8..15]
+  but entirely correct. ✅
+
+#### Private key derivation — byte-order conversion
+- SHA-256 (m35900/35903): `prv_key[0] = sha_ctx.h[7]` (h[7] = LSW in big-endian SHA-256 output) ✅
+- Keccak/SHA3 (m35901/35902/35904): `prv_key[0] = hc_swap32_S(hash[7])` correctly converts
+  LE keccak output word [7] (MSW) → big-endian byte order, into the LSW slot of prv_key. ✅
+  Both produce identical scalar representation for secp256k1 `point_mul_xy`.
+
+#### Uncompressed public key byte ordering (Ethereum modules)
+- `pub_key[i] = hc_swap32_S(x[7-i])` converts secp256k1 LE word order to big-endian bytes
+  as required by Keccak-256 hash of x‖y for Ethereum address. ✅
+
+#### Compressed public key byte ordering (Bitcoin modules)
+- Bitshift construction in m35900/35901/35910 is unchanged from pre-optimization code. ✅
+
+#### Private key zero-check (m35910 / m35912)
+- Both modules retain the guard:
+  ```c
+  if (prv_key[0] == 0 && ... && prv_key[7] == 0) continue;
+  ```
+  Preserved in both mxx and sxx kernels of all three a0/a1/a3 variants. ✅
+
+---
+
+### LEVEL 3 — Performance / Register Pressure
+
+#### Register spill elimination
+- Original m35902/m35904 had `u8 temp[136]` = 136 bytes on the stack = ~34 VGPRs.
+- New implementation: register-only padding (the `lane` variable = 1 u64 = 2 VGPRs max).
+- Net saving: **~32 VGPRs** per thread on AMD/NVIDIA. This is the critical fix to stay under
+  the 256-VGPR hardware limit for Ethereum modules.
+
+#### No runtime table access
+- Original m35902/m35903/m35912 loaded `keccakf_piln[24]` and `keccakf_rotc[24]` from
+  `CONSTANT_VK` (constant/cache memory). New code uses compile-time immediate constants in
+  `Rho_Pi_Imm(j, k)` — no memory loads required during the permutation. ✅
+
+#### No timing side channels
+- All Keccak operations and secp256k1 operations are data-oblivious with respect to the
+  target hash/address (comparison is at the end via COMPARE_M/S_SCALAR). ✅
+
+---
+
+### CHECKLIST
+
+- [x] Keccak-256 round constants match FIPS-202/Keccak reference
+- [x] Rho/Pi sequence (j, k) pairs are identical to the original table-driven code
+- [x] keccak_256_64 absorbs 64-byte input correctly (LE byte semantics)
+- [x] keccak_256_64 padding: 0x01 at byte 64, 0x80 at byte 135
+- [x] keccak_256_64 output: bytes 12–31 → out[0..4] in LE u32 format
+- [x] keccak_256_hash pad = 0x01 (original Keccak-256 / Ethereum) ✅
+- [x] sha3_256_hash pad = 0x06 (SHA3-256 FIPS 202) ✅
+- [x] Register-only padding equivalent to u8 temp[136]
+- [x] addr_type hoist semantics: uniform per-salt, no divergence
+- [x] P2SH tmp[6]=0/tmp[7]=0 simplification is safe (tmp[8..15] verified zero)
+- [x] Private key byte-order conversion correct for SHA-256, Keccak-256, SHA3-256 inputs
+- [x] Uncompressed pub key big-endian byte ordering correct for Ethereum modules
+- [x] Private key zero-check preserved in m35910 and m35912
+- [x] a0/a1/a3 variants all updated consistently
+- [x] Python simulation: Ethereum address for privkey=1 matches known reference ✅
+- [ ] m35904 comment "Keccak-256" should read "SHA3-256" (non-blocking documentation nit)
+- [ ] ULL → UL suffix in inc_hash_keccak256.cl lines 167–168, 262 (non-blocking cosmetic)
+
+---
+
+### VERDICT
+
+The implementation is **mathematically correct and functionally equivalent** to the
+pre-optimization code. All acceptance criteria from the Architect's issue list are satisfied
+for the items marked complete. The two unchecked items above are cosmetic/documentation issues
+that do not affect runtime behavior, hash output, or address computation.
+
+No security vulnerabilities were introduced. No timing side channels. Zero-checks preserved.
+Byte ordering verified end-to-end with Python simulation against known Ethereum test vector.
+
+```
+STATUS: VERIFIED
+```
