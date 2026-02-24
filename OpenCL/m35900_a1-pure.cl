@@ -46,6 +46,10 @@ KERNEL_FQ KERNEL_FA void m35900_mxx (KERN_ATTR_BASIC ())
    * loop
    */
 
+  /* addr_type is uniform across all threads for the same salt; hoist it
+   * outside the per-candidate loop to avoid repeated global-memory reads. */
+  const u32 addr_type = salt_bufs[SALT_POS_HOST].salt_buf[0];
+
   for (u32 il_pos = 0; il_pos < IL_CNT; il_pos++)
   {
     sha256_ctx_t sha_ctx = ctx0;
@@ -94,16 +98,13 @@ KERNEL_FQ KERNEL_FA void m35900_mxx (KERN_ATTR_BASIC ())
     u32 tmp[16] = { 0 };
 
     for (u32 i = 0; i < 8; i++) tmp[i] = ctx.h[i];
-    for (u32 i = 8; i < 16; i++) tmp[i] = 0;
+    /* tmp[8..15] already zero from { 0 } initializer */
 
     ripemd160_ctx_t rctx;
 
     ripemd160_init        (&rctx);
     ripemd160_update_swap (&rctx, tmp, 32);
     ripemd160_final       (&rctx);
-
-    // Check if address type is P2SH (salt_buf[0] == 1)
-    const u32 addr_type = salt_bufs[SALT_POS_HOST].salt_buf[0];
 
     if (addr_type == 1)
     {
@@ -114,7 +115,8 @@ KERNEL_FQ KERNEL_FA void m35900_mxx (KERN_ATTR_BASIC ())
       tmp[3] = (rctx.h[3] << 16) | (rctx.h[2] >> 16);
       tmp[4] = (rctx.h[4] << 16) | (rctx.h[3] >> 16);
       tmp[5] = (rctx.h[4] >> 16);
-      for (u32 i = 6; i < 16; i++) tmp[i] = 0;
+      tmp[6] = 0; tmp[7] = 0;
+      /* tmp[8..15] already zero from { 0 } initializer */
 
       sha256_init        (&ctx);
       sha256_update_swap (&ctx, tmp, 22);
@@ -176,6 +178,10 @@ KERNEL_FQ KERNEL_FA void m35900_sxx (KERN_ATTR_BASIC ())
    * loop
    */
 
+  /* addr_type is uniform across all threads for the same salt; hoist it
+   * outside the per-candidate loop to avoid repeated global-memory reads. */
+  const u32 addr_type = salt_bufs[SALT_POS_HOST].salt_buf[0];
+
   for (u32 il_pos = 0; il_pos < IL_CNT; il_pos++)
   {
     sha256_ctx_t sha_ctx = ctx0;
@@ -224,16 +230,13 @@ KERNEL_FQ KERNEL_FA void m35900_sxx (KERN_ATTR_BASIC ())
     u32 tmp[16] = { 0 };
 
     for (u32 i = 0; i < 8; i++) tmp[i] = ctx.h[i];
-    for (u32 i = 8; i < 16; i++) tmp[i] = 0;
+    /* tmp[8..15] already zero from { 0 } initializer */
 
     ripemd160_ctx_t rctx;
 
     ripemd160_init        (&rctx);
     ripemd160_update_swap (&rctx, tmp, 32);
     ripemd160_final       (&rctx);
-
-    // Check if address type is P2SH (salt_buf[0] == 1)
-    const u32 addr_type = salt_bufs[SALT_POS_HOST].salt_buf[0];
 
     if (addr_type == 1)
     {
@@ -244,7 +247,8 @@ KERNEL_FQ KERNEL_FA void m35900_sxx (KERN_ATTR_BASIC ())
       tmp[3] = (rctx.h[3] << 16) | (rctx.h[2] >> 16);
       tmp[4] = (rctx.h[4] << 16) | (rctx.h[3] >> 16);
       tmp[5] = (rctx.h[4] >> 16);
-      for (u32 i = 6; i < 16; i++) tmp[i] = 0;
+      tmp[6] = 0; tmp[7] = 0;
+      /* tmp[8..15] already zero from { 0 } initializer */
 
       sha256_init        (&ctx);
       sha256_update_swap (&ctx, tmp, 22);

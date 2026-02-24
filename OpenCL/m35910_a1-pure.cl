@@ -109,7 +109,7 @@ KERNEL_FQ KERNEL_FA void m35910_mxx (KERN_ATTR_RULES ())
     u32 tmp[16] = { 0 };
 
     for (u32 i = 0; i < 8; i++) tmp[i] = ctx.h[i];
-    for (u32 i = 8; i < 16; i++) tmp[i] = 0;
+    /* tmp[8..15] already zero from { 0 } initializer */
 
     ripemd160_ctx_t rctx;
 
@@ -216,7 +216,7 @@ KERNEL_FQ KERNEL_FA void m35910_sxx (KERN_ATTR_RULES ())
     u32 tmp[16] = { 0 };
 
     for (u32 i = 0; i < 8; i++) tmp[i] = ctx.h[i];
-    for (u32 i = 8; i < 16; i++) tmp[i] = 0;
+    /* tmp[8..15] already zero from { 0 } initializer */
 
     ripemd160_ctx_t rctx;
 
