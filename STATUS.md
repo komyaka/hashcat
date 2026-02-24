@@ -1,5 +1,5 @@
 # Hashcat Optimization Log
-**Current Module:** [Название модуля, например, m10000.c]
+**Current Module:** Модуля под номерами: 35900, 35901, 35902, 35903, 35904, 35910, 35912
 **Status:** Initialization
 **Cycle Count:** 0
 
