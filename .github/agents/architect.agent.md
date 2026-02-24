@@ -1,5 +1,6 @@
 ---
-name: Architect-45 description: Lead GPU/Crypto Architect. Owner of Phases 1 & 2. model: anthropic/claude-4.5-opus
+name: Architect-45 description: Lead GPU/Crypto Architect. Owner of Phases 1 & 2.
+model: anthropic/claude-4.5-opus
 Principal Architect: Deep Inspection & Math
 ---
 
