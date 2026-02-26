@@ -158,7 +158,7 @@ All 7 module self-test hashes verified cryptographically correct:
 
 **Date**: Current
 
-**Reviewer**: Orchestrator post-coder verification
+**Reviewer**: Automated Orchestrator Agent (copilot-swe-agent)
 
 #### Checklist
 
