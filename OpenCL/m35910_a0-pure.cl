@@ -50,25 +50,26 @@ KERNEL_FQ KERNEL_FA void m35910_mxx (KERN_ATTR_RULES ())
 
     p.pw_len = apply_rules (rules_buf[il_pos].cmds, p.i, p.pw_len);
 
-    // Private key is the input directly (32 bytes in little-endian word order)
-    // Input is already in hex format and decoded by hashcat
+    // Private key is the input directly (32 bytes big-endian).
+    // p.i[] is in hashcat LE word format (first byte in LSB of word 0).
+    // secp256k1 expects k[0] = LSW, k[7] = MSW, each word in BE byte order.
+    // Conversion: k[i] = hc_swap32_S(p.i[7-i])
 
     if (p.pw_len != 32) continue; // Private key must be exactly 32 bytes
 
     u32 prv_key[9];
 
-    prv_key[0] = p.i[0];
-    prv_key[1] = p.i[1];
-    prv_key[2] = p.i[2];
-    prv_key[3] = p.i[3];
-    prv_key[4] = p.i[4];
-    prv_key[5] = p.i[5];
-    prv_key[6] = p.i[6];
-    prv_key[7] = p.i[7];
+    prv_key[0] = hc_swap32_S (p.i[7]);
+    prv_key[1] = hc_swap32_S (p.i[6]);
+    prv_key[2] = hc_swap32_S (p.i[5]);
+    prv_key[3] = hc_swap32_S (p.i[4]);
+    prv_key[4] = hc_swap32_S (p.i[3]);
+    prv_key[5] = hc_swap32_S (p.i[2]);
+    prv_key[6] = hc_swap32_S (p.i[1]);
+    prv_key[7] = hc_swap32_S (p.i[0]);
     prv_key[8] = 0;
 
     // Validate private key range: 0 < prv_key < N (secp256k1 group order)
-    // This is a simplified check - full validation would be more complex
     if (prv_key[0] == 0 && prv_key[1] == 0 && prv_key[2] == 0 && prv_key[3] == 0 &&
         prv_key[4] == 0 && prv_key[5] == 0 && prv_key[6] == 0 && prv_key[7] == 0)
     {
@@ -172,14 +173,14 @@ KERNEL_FQ KERNEL_FA void m35910_sxx (KERN_ATTR_RULES ())
 
     u32 prv_key[9];
 
-    prv_key[0] = p.i[0];
-    prv_key[1] = p.i[1];
-    prv_key[2] = p.i[2];
-    prv_key[3] = p.i[3];
-    prv_key[4] = p.i[4];
-    prv_key[5] = p.i[5];
-    prv_key[6] = p.i[6];
-    prv_key[7] = p.i[7];
+    prv_key[0] = hc_swap32_S (p.i[7]);
+    prv_key[1] = hc_swap32_S (p.i[6]);
+    prv_key[2] = hc_swap32_S (p.i[5]);
+    prv_key[3] = hc_swap32_S (p.i[4]);
+    prv_key[4] = hc_swap32_S (p.i[3]);
+    prv_key[5] = hc_swap32_S (p.i[2]);
+    prv_key[6] = hc_swap32_S (p.i[1]);
+    prv_key[7] = hc_swap32_S (p.i[0]);
     prv_key[8] = 0;
 
     if (prv_key[0] == 0 && prv_key[1] == 0 && prv_key[2] == 0 && prv_key[3] == 0 &&

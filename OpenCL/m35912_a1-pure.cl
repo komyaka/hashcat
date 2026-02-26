@@ -73,14 +73,14 @@ KERNEL_FQ KERNEL_FA void m35912_mxx (KERN_ATTR_BASIC ())
 
     u32 prv_key[9];
 
-    prv_key[0] = c[0];
-    prv_key[1] = c[1];
-    prv_key[2] = c[2];
-    prv_key[3] = c[3];
-    prv_key[4] = c[4];
-    prv_key[5] = c[5];
-    prv_key[6] = c[6];
-    prv_key[7] = c[7];
+    prv_key[0] = hc_swap32_S (c[7]);
+    prv_key[1] = hc_swap32_S (c[6]);
+    prv_key[2] = hc_swap32_S (c[5]);
+    prv_key[3] = hc_swap32_S (c[4]);
+    prv_key[4] = hc_swap32_S (c[3]);
+    prv_key[5] = hc_swap32_S (c[2]);
+    prv_key[6] = hc_swap32_S (c[1]);
+    prv_key[7] = hc_swap32_S (c[0]);
     prv_key[8] = 0;
 
     // Private key cannot be zero
@@ -198,14 +198,14 @@ KERNEL_FQ KERNEL_FA void m35912_sxx (KERN_ATTR_BASIC ())
 
     u32 prv_key[9];
 
-    prv_key[0] = c[0];
-    prv_key[1] = c[1];
-    prv_key[2] = c[2];
-    prv_key[3] = c[3];
-    prv_key[4] = c[4];
-    prv_key[5] = c[5];
-    prv_key[6] = c[6];
-    prv_key[7] = c[7];
+    prv_key[0] = hc_swap32_S (c[7]);
+    prv_key[1] = hc_swap32_S (c[6]);
+    prv_key[2] = hc_swap32_S (c[5]);
+    prv_key[3] = hc_swap32_S (c[4]);
+    prv_key[4] = hc_swap32_S (c[3]);
+    prv_key[5] = hc_swap32_S (c[2]);
+    prv_key[6] = hc_swap32_S (c[1]);
+    prv_key[7] = hc_swap32_S (c[0]);
     prv_key[8] = 0;
 
     if (prv_key[0] == 0 && prv_key[1] == 0 && prv_key[2] == 0 && prv_key[3] == 0 &&
