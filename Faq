@@ -1,0 +1,29 @@
+# Скачиваем установщик актуальной версии
+wget https://repo.radeon.com/amdgpu-install/6.2/ubuntu/noble/amdgpu-install_6.2.60200-1_all.deb
+
+# Устанавливаем его
+sudo apt install ./amdgpu-install_6.2.60200-1_all.deb
+
+# Обновляем списки
+sudo apt update
+
+
+sudo amdgpu-install --usecase=opencl,rocm --no-dkms
+
+Добавьте переменную окружения в ваш профиль:
+​Откройте файл: nano ~/.bashrc
+​В самый конец файла добавьте строку:
+export HSA_OVERRIDE_GFX_VERSION=8.0.3
+​Сохраните (Ctrl+O, Enter) и выйдите (Ctrl+X).
+​Примените изменения: source ~/.bashrc
+​4. Настройка вентиляторов (если CoreCtrl не помогает)
+​Поскольку вы уже прописали amdgpu.ppfeaturemask=0xffffffff в GRUB, вы можете управлять вентиляторами напрямую через терминал, если графические утилиты капризничают.
+​Скрипт для принудительного включения (на 50% мощности):
+
+# Переключаем управление в ручной режим
+echo "1" | sudo tee /sys/class/drm/card0/device/hwmon/hwmon*/pwm1_enable
+
+# Выставляем скорость (0-255, где 128 это ~50%)
+echo "128" | sudo tee /sys/class/drm/card0/device/hwmon/hwmon*/pwm1
+
+
