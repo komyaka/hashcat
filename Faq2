@@ -1,1 +1,16 @@
-HSA_OVERRIDE_GFX_VERSION=8.0.3 ROCK_RELAX_PCI_ATOMIC_CHECKS=1 ./hashcat -m 35902 -a 0 /home/komyak/brute/pass/et...txt /home/komyak/brute/pass/pass2btc3.txt -o found_keys23.txt --session pac3 --opencl-platforms 1
+sudo amdgpu-install --uninstall
+sudo apt remove mesa-opencl-icd
+sudo apt autoremove
+
+
+sudo amdgpu-install --usecase=opencl --opencl=legacy
+
+
+nano ~/.bashrc
+export OCL_ICD_VENDORS=amdgpu.icd
+
+
+source ~/.bashrc
+
+
+./hashcat -m 35902 -a 0 /home/komyak/brute/pass/eth.txt /home/komyak/brute/pass/pass2btc3.txt -o found_keys23.txt --session pac3 -p 1
