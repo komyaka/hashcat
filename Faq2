@@ -1,3 +1,19 @@
+for i in /sys/class/drm/card*/device/hwmon/hwmon*/pwm1; do echo 150 | sudo tee $i; done
+150
+150
+tee: /sys/class/drm/card1/device/hwmon/hwmon4/pwm1: Недопустимый аргумент
+150
+tee: /sys/class/drm/card2/device/hwmon/hwmon5/pwm1: Недопустимый аргумент
+150
+tee: /sys/class/drm/card3/device/hwmon/hwmon6/pwm1: Время ожидания соединения истекло
+150
+tee: /sys/class/drm/card4/device/hwmon/hwmon7/pwm1: Недопустимый аргумент
+150
+tee: /sys/class/drm/card5/device/hwmon/hwmon8/pwm1: Недопустимый аргумент
+
+
+
+
 # Включаем ручное управление для всех карт сразу
 for i in /sys/class/drm/card*/device/hwmon/hwmon*/pwm1_enable; do echo 1 | sudo tee $i; done
 
