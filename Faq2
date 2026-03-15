@@ -1,0 +1,11 @@
+# Включаем ручное управление для всех карт сразу
+for i in /sys/class/drm/card*/device/hwmon/hwmon*/pwm1_enable; do echo 1 | sudo tee $i; done
+
+# Ставим скорость (150 из 255 — это примерно 60% оборотов)
+for i in /sys/class/drm/card*/device/hwmon/hwmon*/pwm1; do echo 150 | sudo tee $i; done
+
+
+hashcat -b --optimized-kernel-enable=0
+
+
+ppfeaturemask (команда cat /proc/cmdline).
